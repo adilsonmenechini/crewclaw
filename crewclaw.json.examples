@@ -1,0 +1,57 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "crewclaw",
+    "memory_dir": "./memory",
+    "database_path": "./memory/crewclaw.db"
+  },
+  "llm": {
+    "provider": "openrouter",
+    "model": "openrouter/google/gemini-2.5-flash",
+    "api_key_env": "API_KEY",
+    "temperature": 0.7,
+    "max_tokens": 2048
+  },
+  "embedding": {
+    "provider": "ollama",
+    "model": "ollama/mxbai-embed-large:latest",
+    "dimension": 384,
+    "api_key_env": "OPENAI_API_KEY"
+  },
+  "chunking": {
+    "chunk_size": 500,
+    "chunk_overlap": 50,
+    "syntax_aware": true
+  },
+  "search": {
+    "fts5_enabled": true,
+    "vector_enabled": true,
+    "hybrid_rerank": true,
+    "default_limit": 5,
+    "recency_weight": 0.3
+  },
+  "memory": {
+    "scopes": ["/agent", "/project", "/company"],
+    "retention_days": 90,
+    "auto_consolidate": true,
+    "consolidate_after_tasks": 3
+  },
+  "runtime": {
+    "max_iterations": 20,
+    "max_execution_time": 300,
+    "max_retry_limit": 2,
+    "code_execution_mode": "safe",
+    "watchdog_enabled": true,
+    "watchdog_threshold": 3
+  },
+  "watch": {
+    "enabled": true,
+    "watch_paths": ["./memory"],
+    "debounce_seconds": 1
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "file": "./logs/crewclaw.log"
+  }
+}

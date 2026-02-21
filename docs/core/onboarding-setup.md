@@ -1,46 +1,46 @@
 # Interactive Onboarding (crewclaw init)
 
-O comando `crewclaw init` foi transformado em um assistente interativo que configura o ambiente completo para você, seguindo as melhores práticas de onboarding.
+The `crewclaw init` command has been transformed into an interactive assistant that configures the complete environment for you, following onboarding best practices.
 
-## Fluxo de Configuração
+## Configuration Flow
 
-Ao executar o comando, o CrewClaw guiará você pelos seguintes passos:
+When you run the command, CrewClaw will guide you through the following steps:
 
-### 1. Identidade (Soul)
-- **Seu Nome**: Como o assistente deve se referir a você.
-- **Nome da IA**: O nome que você deseja dar ao seu assistente (ex: Orion, Jarvis, CrewClaw).
-- **Objetivo Principal**: A missão central da sua IA (ex: "Me ajudar com automação SRE").
-- **Deteção de Template**: O sistema analisa seu objetivo para carregar automaticamente o melhor conjunto inicial de ferramentas e prompts (ex: SRE, Researcher, Writer).
+### 1. Identity (Soul)
+- **Your Name**: How the assistant should address you.
+- **AI Name**: The name you wish to give your assistant (e.g., Orion, Jarvis, CrewClaw).
+- **Main Goal**: Your AI's central mission (e.g., "Helping me with SRE automation").
+- **Template Detection**: The system analyzes your goal to automatically load the best initial set of tools and prompts (e.g., SRE, Researcher, Writer).
 
-### 2. LLM e Provedores
-- **Provedor**: Escolha entre OpenRouter (padrão), Google, OpenAI ou Anthropic.
-- **Modelo**: Especifique o modelo desejado (ex: `google/gemini-2.0-flash-lite`).
-- **API Key**: Chave de acesso que será salva de forma segura no arquivo `.env`.
-- **Fallback (Opcional)**: Configure um provedor de reserva caso o principal esteja indisponível.
+### 2. LLM and Providers
+- **Provider**: Choose between OpenRouter (default), Google, OpenAI, or Anthropic.
+- **Model**: Specify the desired model (e.g., `google/gemini-2.0-flash-lite`).
+- **API Key**: Access key that will be securely saved in the `.env` file.
+- **Fallback (Optional)**: Set up a backup provider in case the primary one is unavailable.
 
-### 3. Integrações (Opcional)
-- **Telegram**: Você pode ativar a integração com o Telegram fornecendo o Bot Token.
+### 3. Integrations (Optional)
+- **Telegram**: You can activate Telegram integration by providing a Bot Token.
 
-## O que o comando gera automaticamente
+## Automatically Generated Structure
 
-Após o preenchimento, o CrewClaw cria a seguinte estrutura:
+After completion, CrewClaw creates the following structure:
 
-- **`crewclaw.json`**: Arquivo de configuração central com todos os parâmetros.
-- **`.env`**: Armazenamento seguro de chaves de API.
-- **`workspace/memory/soul.md`**: A base da personalidade e identidade da sua IA.
-- **`workspace/agents/assistant.yaml`**: Um agente pronto, configurado com sua identidade e objetivo.
-- **`workspace/tasks/getting_started.yaml`**: Uma tarefa inicial para testar o sistema.
-- **`workspace/skills/hello.md`**: Uma skill (ferramenta) Python básica de exemplo.
+- **`crewclaw.json`**: Central configuration file with all parameters.
+- **`.env`**: Secure storage for API keys.
+- **`workspace/memory/soul.md`**: The foundation of your AI's personality and identity.
+- **`workspace/agents/assistant.yaml`**: A ready-to-use agent configured with your identity and goal.
+- **`workspace/tasks/getting_started.yaml`**: An initial task to test the system.
+- **`workspace/skills/hello.md`**: A basic example Python skill (tool).
 
-## Como Executar
+## How to Run
 
-Simplesmente digite no seu terminal:
+Simply type in your terminal:
 
 ```bash
 uv run crewclaw init
 ```
 
-Se desejar apenas criar a estrutura de diretórios sem o assistente interativo:
+If you wish to create the directory structure without the interactive assistant:
 
 ```bash
 uv run crewclaw init --non-interactive
@@ -48,7 +48,7 @@ uv run crewclaw init --non-interactive
 
 ---
 > [!TIP]
-> Após o init, você pode testar seu novo assistente rodando:
-> `uv run crewclaw run -a assistant "Olá, apresente-se"`
+> After init, you can test your new assistant by running:
+> `uv run crewclaw run -a assistant "Hello, introduce yourself"`
 > 
-> Use a flag `--verbose` para acompanhar o raciocínio detalhado da IA!
+> Use the `--verbose` flag to follow the AI's detailed reasoning!

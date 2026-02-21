@@ -1,47 +1,47 @@
-# ADR 005: Runtime ReAct - Execução Autônoma
+# ADR 005: ReAct Runtime - Autonomous Execution
 
 ## 1. Status
 
-**Aceito** - Implementado na versão 1.0.0
+**Accepted** - Implemented in version 1.0.0
 
-## 2. Contexto
+## 2. Context
 
-O CrewClaw precisa de um runtime que execute agentes de forma autônoma com:
-- **Loop ReAct**: Thought → Action → Observation
-- **Limite de iterações**: Evitar loops infinitos
-- **Watchdog**: Detectar comportamento repetitivo
-- **Auto-correção**: Recover de erros automaticamente
+CrewClaw needs a runtime that executes agents autonomously with:
+- **ReAct Loop**: Thought → Action → Observation.
+- **Iteration Limit**: Avoid infinite loops.
+- **Watchdog**: Detect repetitive behavior.
+- **Auto-correction**: Automatically recover from errors.
 
-## 3. Decisões
+## 3. Decisions
 
-### 3.1 Runtime Escolhido: Custom ReAct
+### 3.1 Chosen Runtime: Custom ReAct
 
-| Abordagem | Decisão | Justificativa |
+| Approach | Decision | Rationale |
 |-----------|---------|---------------|
-| **Custom ReAct** | ✅ Escolhido | Control total, watchdog, callbacks |
-| CrewAI native | ❌ Rejeitado | Less control sobre iterações |
-| LangChain Agent | ❌ Rejeitado | Não suporta watchdog |
+| **Custom ReAct** | ✅ Chosen | Full control, watchdog, callbacks |
+| CrewAI native | ❌ Rejected | Less control over iterations |
+| LangChain Agent | ❌ Rejected | Does not support watchdog |
 
-### 3.2 Fluxo ReAct
+### 3.2 ReAct Flow
 
 ```mermaid
 flowchart TD
-    START[Tarefa] --> ITER[Iteração +1]
-    ITER --> THOUGHT[Thought<br/>Analisar situação]
-    THOUGHT --> ACTION[Action<br/>Executar tool]
-    ACTION --> OBS[Observation<br/>Resultado]
-    OBS --> CHECK{Completo?}
-    CHECK -->|Sim| DONE[Retornar resultado]
-    CHECK -->|Não| LOOP{Iterações<br/>< Max?}
-    LOOP -->|Sim| ITER
-    LOOP -->|Não| MAX[Max iterations<br/>reached]
+    START[Task] --> ITER[Iteration +1]
+    ITER --> THOUGHT[Thought<br/>Analyze situation]
+    THOUGHT --> ACTION[Action<br/>Execute tool]
+    ACTION --> OBS[Observation<br/>Result]
+    OBS --> CHECK{Complete?}
+    CHECK -->|Yes| DONE[Return result]
+    CHECK -->|No| LOOP{Iterations<br/>< Max?}
+    LOOP -->|Yes| ITER
+    LOOP -->|No| MAX[Max iterations<br/>reached]
     
-    OBS --> ERROR[Erro detected]
+    OBS --> ERROR[Error detected]
     ERROR --> RETRY[Modify task<br/>Retry]
     RETRY --> ITER
 ```
 
-### 3.3 Componentes do Runtime
+### 3.3 Runtime Components
 
 ```mermaid
 classDiagram
@@ -57,9 +57,9 @@ classDiagram
     }
 ```
 
-## 4. Configuração
+## 4. Configuration
 
-### 4.1 Parâmetros
+### 4.1 Parameters
 
 ```json
 {
@@ -74,39 +74,39 @@ classDiagram
 }
 ```
 
-| Parâmetro | Default | Descrição |
+| Parameter | Default | Description |
 |-----------|---------|-----------|
-| `max_iterations` | 20 | Limite de loops ReAct |
-| `max_execution_time` | 300s | Timeout total |
-| `max_retry_limit` | 2 | Tentativas por erro |
-| `watchdog_enabled` | true | Detectar loops |
-| `watchdog_threshold` | 3 | Ações repetidas para trigger |
+| `max_iterations` | 20 | ReAct loop limit |
+| `max_execution_time` | 300s | Total timeout |
+| `max_retry_limit` | 2 | Attempts per error |
+| `watchdog_enabled` | true | Detect loops |
+| `watchdog_threshold` | 3 | Repeated actions for trigger |
 
-### 4.2 Uso
+### 4.2 Usage
 
 ```python
 from crewclaw.runtime.react import ReActRuntime
 from crewclaw.agents.factory import AgentFactory
 
-# Criar agente
+# Create agent
 factory = AgentFactory()
 agent = factory.create_agent("explorer", tools=[...])
 
-# Executar com runtime
+# Execute with runtime
 runtime = ReActRuntime(agent)
 result = runtime.execute(
-    task="Analise o código fonte e encontre bugs",
+    task="Analyze the source code and find bugs",
     callbacks=[on_iteration, on_complete]
 )
 ```
 
-## 5. Mecanismos de Proteção
+## 5. Protection Mechanisms
 
 ### 5.1 Watchdog
 
 ```python
 def _detect_loop(self, action_count, last_action):
-    """Detecta se agente está em loop."""
+    """Detects if agent is in a loop."""
     if last_action in action_count:
         action_count[last_action] += 1
         return action_count[last_action] >= self.watchdog_threshold
@@ -114,15 +114,15 @@ def _detect_loop(self, action_count, last_action):
     action_count[last_action] = 1
     return False
 
-# Se watchdog dispara:
+# If watchdog triggers:
 # RuntimeError: "Watchdog detected potential infinite loop"
 ```
 
-### 5.2 Auto-correção
+### 5.2 Auto-correction
 
 ```python
 def _modify_task(self, task, error):
-    """Modifica task após erro para retry."""
+    """Modifies task after error for retry."""
     return f"""{task}
     
 Note: Previous attempt failed with error: {error}. 
@@ -133,7 +133,7 @@ Please try a different approach."""
 
 ```python
 def _is_complete(self, result):
-    """Verifica se resultado indica conclusão."""
+    """Checks if result indicates completion."""
     indicators = [
         "completed", "finished", "done",
         "success", "result:"
@@ -141,9 +141,9 @@ def _is_complete(self, result):
     return any(i in result.lower() for i in indicators)
 ```
 
-## 6.Callbacks
+## 6. Callbacks
 
-### 6.1 Hooks de Execução
+### 6.1 Execution Hooks
 
 ```python
 def on_iteration(iteration, history):
@@ -159,22 +159,22 @@ runtime.execute(
 )
 ```
 
-## 7. Consequências
+## 7. Consequences
 
-### 7.1 Vantagens
+### 7.1 Advantages
 
-- **Controle total**: Iterações, timeouts, retries
-- **Watchdog**: Previne loops infinitos
-- **Callbacks**: Hooks para monitoring
-- **Auto-correção**: Recovery automático
+- **Full Control**: Iterations, timeouts, retries.
+- **Watchdog**: Prevents infinite loops.
+- **Callbacks**: Hooks for monitoring.
+- **Auto-correction**: Automatic recovery.
 
-### 7.2 Limitações
+### 7.2 Limitations
 
-- Implementação custom requer manutenção
-- Less polished que CrewAI native
-- Timeout em segundos, não granular
+- Custom implementation requires maintenance.
+- Less polished than native CrewAI.
+- Timeout in seconds, not granular.
 
-## 8. Referências
+## 8. References
 
 - [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629)
 - [LangChain Agents](https://python.langchain.com/docs/modules/agents/)

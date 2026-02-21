@@ -1,102 +1,102 @@
 # CrewClaw
 
-Sistema de agentes autônomos com memória persistente local.
+Autonomous agent system with local persistent memory.
 
 ## Overview
 
-CrewClaw é um framework de agentes AI que combina:
-- **Orquestração**: CrewAI para gestão de múltiplos agentes
-- **Memória Vetorial**: SQLite + sqlite-vec para busca semântica
-- **Execução Autônoma**: Runtime ReAct com watchdog e Heartbeat
-- **Skills Dinâmicas**: Registro de ferramentas via arquivos Markdown/YAML
-- **Identidade e Alma**: Personalidade evolutiva do agente
-- **Privacidade**: 100% local, zero dependência cloud
+CrewClaw is an AI agent framework that combines:
+- **Orchestration**: CrewAI for multi-agent management.
+- **Vector Memory**: SQLite + sqlite-vec for semantic search.
+- **Autonomous Execution**: ReAct runtime with watchdog and Heartbeat.
+- **Dynamic Skills**: Tool registration via Markdown/YAML files.
+- **Identity and Soul**: Evolvable agent personality.
+- **Privacy**: 100% local, zero cloud dependencies.
 
-## Documentação
+## Documentation
 
-📚 **Guia de Início Rápido e Índice**: [docs/000-index.md](docs/000-index.md)
+📚 **Quick Start Guide and Index**: [docs/000-index.md](docs/000-index.md)
 
-### Conceitos Principais
+### Core Concepts
 
-| Guia | Descrição |
+| Guide | Description |
 |------|-----------|
-| [Skills, Agents, and Tasks](docs/core/triad-orchestration.md) | A tríade fundamental de orquestração do CrewClaw |
-| [Módulos Avançados](docs/features/advanced-modules.md) | Soul, Heartbeat, Hooks, Bridge e Auto-melhoria |
+| [Skills, Agents, and Tasks](docs/core/triad-orchestration.md) | The fundamental orchestration triad of CrewClaw |
+| [Advanced Modules](docs/features/advanced-modules.md) | Soul, Heartbeat, Hooks, Bridge, and Self-improvement |
 
-### Arquitetura de Decisões (ADR)
+### Architecture Decisions (ADR)
 
-Grouped by evolution and major decisions. [Ver todos os ADRs](docs/adr/)
+Grouped by evolution and major decisions. [View all ADRs](docs/adr/)
 
 ## Quick Start
 
-### Instalação
+### Installation
 
 ```bash
-# Clone o repositório
+# Clone the repository
 git clone https://github.com/your-org/crewclaw.git
 cd crewclaw
 
-# Instale via pip (modo editável recomendado)
+# Install via pip (editable mode recommended)
 pip install -e .
 ```
 
-### 🚀 Onboarding Inteligente (Recomendado)
+### 🚀 Intelligent Onboarding (Recommended)
 
-O CrewClaw possui um assistente que configura tudo para você, desde o provedor de LLM até a identidade inicial da sua IA.
+CrewClaw features an assistant that configures everything for you, from the LLM provider to your AI's initial identity.
 
 ```bash
 crewclaw init
 ```
 
-Este comando irá:
-1. Configurar o **provedor e modelo** de LLM.
-2. Definir a **identidade** (Soul) e o objetivo central do seu agente.
-3. Criar uma estrutura de **workspace** com agentes e tasks prontos para uso.
+This command will:
+1. Configure the LLM **provider and model**.
+2. Define the **identity** (Soul) and central goal of your agent.
+3. Create a **workspace** structure with agents and tasks ready for use.
 
 ---
 
-## Como Usar
+## How to Use
 
-### 1. Rodar um Agente
-Após o `init`, você pode rodar o assistente padrão:
+### 1. Run an Agent
+After `init`, you can run the default assistant:
 ```bash
-uv run crewclaw run -a assistant "Resuma os arquivos do meu projeto"
+uv run crewclaw run -a assistant "Summarize my project files"
 ```
 
-Para ver logs detalhados de execução (pensamentos da IA, ferramentas sendo chamadas):
+To see detailed execution logs (AI's thoughts, tools being called):
 ```bash
-uv run crewclaw run -a assistant "Resuma o projeto" --verbose
+uv run crewclaw run -a assistant "Summarize the project" --verbose
 ```
 
-### 2. Buscar na Memória
-O CrewClaw indexa automaticamente seus arquivos Markdown em `workspace/memory/`:
+### 2. Search in Memory
+CrewClaw automatically indexes your Markdown files in `workspace/memory/`:
 ```bash
-uv run crewclaw search "objetivos do projeto"
+uv run crewclaw search "project goals"
 ```
 
-### 3. Personalizar o Workspace
-Toda a lógica está no diretório `workspace/`:
-- **`agents/`**: Defina novos agentes via YAML.
-- **`tasks/`**: Agende missões específicas.
-- **`skills/`**: Crie ferramentas Python dinâmicas usando Markdown.
+### 3. Customize the Workspace
+All logic resides in the `workspace/` directory:
+- **`agents/`**: Define new agents via YAML.
+- **`tasks/`**: Schedule specific missions.
+- **`skills/`**: Create dynamic Python tools using Markdown.
 
 ---
 
-## Estrutura do Projeto
+## Project Structure
 
 ```
 workspace/
-├── memory/           # Soul (identidade), .md indexados e SQLite
-├── agents/           # Configurações dinâmicas de agentes (.yaml)
-├── tasks/            # Definições de missões (.yaml)
-├── skills/           # Ferramentas personalizadas (.md)
-├── mcp/              # Integrações via Model Context Protocol
-└── custom_tools/     # Ferramentas Python nativas
+├── memory/           # Soul (identity), indexed .md files, and SQLite
+├── agents/           # Dynamic agent configurations (.yaml)
+├── tasks/            # Mission definitions (.yaml)
+├── skills/           # Custom tools (.md)
+├── mcp/              # Integrations via Model Context Protocol
+└── custom_tools/     # Native Python tools
 ```
 
-## Configuração Avançada
+## Advanced Configuration
 
-O arquivo `crewclaw.json` (gerado pelo `init`) permite ajustes finos:
+The `crewclaw.json` file (generated by `init`) allows for fine-tuning:
 ```json
 {
   "llm": {
@@ -108,7 +108,7 @@ O arquivo `crewclaw.json` (gerado pelo `init`) permite ajustes finos:
 }
 ```
 
-## Documentação Completa
+## Full Documentation
 📚 [docs/000-index.md](docs/000-index.md)
 
 ## License

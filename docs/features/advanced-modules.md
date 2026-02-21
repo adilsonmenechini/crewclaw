@@ -43,15 +43,15 @@ Atomic actions execute based on cron schedules without full reasoning loops.
 Expands interaction beyond the terminal into Telegram, Slack, or WhatsApp.
 
 ### Telegram Configuration (Experimental)
-Para configurar o Telegram, você precisará de um Token do BotFather:
-1. Crie um bot no [@BotFather](https://t.me/botfather).
-2. Adicione o Token ao seu arquivo `crewclaw.json` (quando disponível) ou como variável de ambiente:
+To configure Telegram, you will need a Token from BotFather:
+1. Create a bot at [@BotFather](https://t.me/botfather).
+2. Add the Token to your `crewclaw.json` file (when available) or as an environment variable:
    ```bash
-   export TELEGRAM_BOT_TOKEN="seu_token_aqui"
+   export TELEGRAM_BOT_TOKEN="your_token_here"
    ```
 
 > [!NOTE]
-> O suporte nativo via CLI está em desenvolvimento. Atualmente, a implementação base encontra-se em `crewclaw/agent/bridge.py` como um placeholder para integração futura.
+> Native support via CLI is under development. Currently, the base implementation is located in `crewclaw/agent/bridge.py` as a placeholder for future integration.
 
 ### Interaction Workflow
 ```mermaid

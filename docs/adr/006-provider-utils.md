@@ -1,103 +1,103 @@
-# ADR 006: Separação de Módulos `provider/` e `utils/`
+# ADR 006: Separation of `provider/` and `utils/` Modules
 
 ## 1. Status
 
-**Aceito** — Implementado na versão 1.1.0
+**Accepted** — Implemented in version 1.1.0
 
-## 2. Contexto
+## 2. Context
 
-Na versão 1.0, certas abstrações foram colocadas em módulos incorretos:
+In version 1.0, certain abstractions were placed in incorrect modules:
 
-- `memory/llm.py`, `memory/embedder.py`, `memory/crewai_llm.py` — código de **provedor de IA** (LiteLLM, OpenAI embeddings, sentence-transformers) estava dentro do módulo de memória, causando acoplamento desnecessário.
-- `config/logging.py`, `config/errors.py` — utilitários **transversais** (logging, exceções) estavam misturados com a gestão de configuração.
-- `provider/` e `utils/` existiam como diretórios vazios sem código.
+- `memory/llm.py`, `memory/embedder.py`, `memory/crewai_llm.py` — **AI provider** code (LiteLLM, OpenAI embeddings, sentence-transformers) was inside the memory module, causing unnecessary coupling.
+- `config/logging.py`, `config/errors.py` — **Cross-cutting** utilities (logging, exceptions) were mixed with configuration management.
+- `provider/` and `utils/` existed as empty directories without code.
 
-### Problema
+### Problem
 
-A estrutura causava:
-- Dificuldade de descoberta: onde fica o LLM? Em `memory`? Em `config`?
-- Acoplamento: quem quer usar o LLM precisa importar de `memory`
-- Stagnação: módulos `provider/` e `utils/` estavam criados mas vazios
+The structure caused:
+- Difficulty in discovery: where does the LLM reside? In `memory`? In `config`?
+- Coupling: anyone wanting to use the LLM had to import from `memory`.
+- Stagnation: `provider/` and `utils/` modules were created but empty.
 
-## 3. Decisão
+## 3. Decision
 
-Reorganizar o código movendo cada arquivo para o módulo semanticamente correto, mantendo **stubs de compatibilidade** nos locais antigos para não quebrar imports existentes.
+Reorganize the code by moving each file to the semantically correct module, while maintaining **compatibility stubs** in the old locations to avoid breaking existing imports.
 
-### 3.1 Módulo `provider/`
+### 3.1 `provider/` Module
 
-Contém todas as abstrações de provedores externos de IA:
+Contains all abstractions for external AI providers:
 
-| Arquivo | Responsabilidade |
+| File | Responsibility |
 |---------|-----------------|
-| `provider/llm.py` | Abstração `LLM` + `LiteLLM` com suporte a 100+ providers |
-| `provider/embedder.py` | `Embedder`, `OpenAIEmbedder`, `SentenceTransformersEmbedder` |
-| `provider/crewai.py` | `LiteLLMForCrewAI` — wrapper compatível com interface CrewAI |
+| `provider/llm.py` | `LLM` + `LiteLLM` abstraction with support for 100+ providers. |
+| `provider/embedder.py` | `Embedder`, `OpenAIEmbedder`, `SentenceTransformersEmbedder`. |
+| `provider/crewai.py` | `LiteLLMForCrewAI` — wrapper compatible with the CrewAI interface. |
 
-### 3.2 Módulo `utils/`
+### 3.2 `utils/` Module
 
-Contém utilitários transversais usados por todos os módulos:
+Contains cross-cutting utilities used by all modules:
 
-| Arquivo | Responsabilidade |
+| File | Responsibility |
 |---------|-----------------|
-| `utils/logging.py` | `get_logger`, `setup_logging` |
-| `utils/errors.py` | Hierarquia de exceções (`CrewClawError` e subclasses) |
-| `utils/text.py` | Helpers de texto: `truncate`, `slugify`, `sanitize_filename`, etc. |
+| `utils/logging.py` | `get_logger`, `setup_logging`. |
+| `utils/errors.py` | Exception hierarchy (`CrewClawError` and subclasses). |
+| `utils/text.py` | Text helpers: `truncate`, `slugify`, `sanitize_filename`, etc. |
 
-### 3.3 Stubs de Compatibilidade
+### 3.3 Compatibility Stubs
 
-Os arquivos antigos foram substituídos por stubs que re-exportam do novo local:
+Old files were replaced by stubs that re-export from the new location:
 
 ```python
 # crewclaw/memory/llm.py (stub)
 from ..provider.llm import LLM, LiteLLM, create_llm  # noqa: F401
 ```
 
-Isso garante que código existente que usa `from crewclaw.memory import LLM` continue funcionando.
+This ensures that existing code using `from crewclaw.memory import LLM` continues to work.
 
-## 4. Nova Estrutura de Diretórios
+## 4. New Directory Structure
 
 ```
 crewclaw/
-├── agents/           # Factory e Crew
-├── cli/              # Interface de linha de comando
-├── config/           # Gestão de configuração JSON
+├── agents/           # Factory and Crew
+├── cli/              # Command line interface
+├── config/           # JSON configuration management
 │   ├── __init__.py   # Config singleton
 │   ├── errors.py     # Stub → utils/errors.py
 │   └── logging.py    # Stub → utils/logging.py
-├── memory/           # Persistência: SQLite, Markdown, busca híbrida
+├── memory/           # Persistence: SQLite, Markdown, hybrid search
 │   ├── llm.py        # Stub → provider/llm.py
 │   ├── embedder.py   # Stub → provider/embedder.py
 │   ├── crewai_llm.py # Stub → provider/crewai.py
 │   └── ...           # database, vectorstore, chunker, etc.
-├── provider/         # ★ NOVO: Abstrações de provedores de IA
+├── provider/         # ★ NEW: AI provider abstractions
 │   ├── __init__.py
 │   ├── llm.py        # LLM, LiteLLM, create_llm
-│   ├── embedder.py   # Embedder e implementações
+│   ├── embedder.py   # Embedder and implementations
 │   └── crewai.py     # LiteLLMForCrewAI
-├── runtime/          # Executor ReAct + Watchdog
-├── tools/            # Ferramentas do sistema
-└── utils/            # ★ NOVO: Utilitários transversais
+├── runtime/          # ReAct executor + Watchdog
+├── tools/            # System tools
+└── utils/            # ★ NEW: Cross-cutting utilities
     ├── __init__.py
     ├── logging.py    # get_logger, setup_logging
-    ├── errors.py     # Hierarquia de exceções
+    ├── errors.py     # Exception hierarchy
     └── text.py       # truncate, slugify, sanitize_filename
 ```
 
-## 5. Consequências
+## 5. Consequences
 
-### 5.1 Vantagens
+### 5.1 Advantages
 
-- **Separação de responsabilidades** clara: provider = AI APIs, utils = infra interna
-- **Descobribilidade**: imports intuitivos (`from crewclaw.provider import LiteLLM`)
-- **Testabilidade**: módulos menores e independentes
-- **Backward compatibility** total via stubs
+- **Clear separation of responsibilities**: provider = AI APIs, utils = internal infra.
+- **Discoverability**: intuitive imports (`from crewclaw.provider import LiteLLM`).
+- **Testability**: smaller, independent modules.
+- **Full backward compatibility** via stubs.
 
-### 5.2 Custos
+### 5.2 Costs
 
-- Dois níveis de indireção (stub → provider) — custo mínimo em runtime
-- Stubs legados devem ser removidos em versão futura (v2.0)
+- Two levels of indirection (stub → provider) — minimal runtime cost.
+- Legacy stubs should be removed in a future version (v2.0).
 
-## 6. Imports Canônicos (pós-refactoring)
+## 6. Canonical Imports (Post-refactoring)
 
 ```python
 # LLM
@@ -113,7 +113,7 @@ from crewclaw.provider import LiteLLMForCrewAI, create_crewai_llm
 from crewclaw.utils import get_logger, CrewClawError, truncate
 ```
 
-## 7. Referências
+## 7. References
 
-- [ADR 001](001-arquitetura-sistema.md) — Arquitetura Geral
-- [ADR 003](003-memoria-vetorial.md) — Memória Vetorial
+- [ADR 001](001-system-architecture.md) — General Architecture
+- [ADR 003](003-vector-memory.md) — Vector Memory

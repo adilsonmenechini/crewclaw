@@ -1,23 +1,23 @@
-# ADR 004: Sistema de Ferramentas (Tools)
+# ADR 004: Tools System
 
 ## 1. Status
 
-**Aceito** - Implementado na versão 1.0.0
+**Accepted** - Implemented in version 1.0.0
 
-## 2. Contexto
+## 2. Context
 
-Os agentes CrewClaw precisam de ferramentas para interagir com o sistema de arquivos, executar comandos, buscar na web e gerenciar memória.
+CrewClaw agents need tools to interact with the file system, execute commands, search the web, and manage memory.
 
-### Requisitos
+### Requirements
 
-- Interface统一 para todas as tools
-- Suporte a parâmetros com validação
-- Execução assíncrona
-- Schema OpenAI-compatible
+- Unified interface for all tools.
+- Support for parameters with validation.
+- Asynchronous execution.
+- OpenAI-compatible schema.
 
-## 3. Decisões
+## 3. Decisions
 
-### 3.1 Arquitetura Base
+### 3.1 Base Architecture
 
 ```mermaid
 classDiagram
@@ -57,23 +57,23 @@ classDiagram
     Tool <|-- Shell
 ```
 
-### 3.2 Ferramentas Disponíveis
+### 3.2 Available Tools
 
-| Tool | Descrição | Parâmetros |
+| Tool | Description | Parameters |
 |------|-----------|------------|
-| `file_read` | Ler arquivos | `path`, `limit`, `offset` |
-| `file_write` | Escrever arquivos | `path`, `content` |
-| `file_search` | Buscar por padrões | `pattern`, `path` |
-| `grep` | Grep com regex | `pattern`, `include`, `path` |
-| `shell` | Executar comandos | `command`, `timeout` |
-| `web` | Busca na web | `query`, `num_results` |
-| `directory_list` | Listar diretórios | `path`, `recursive` |
-| `memory_search` | Buscar na memória | `query`, `scope`, `limit` |
-| `crewai_tools` | Ferramentas externas | Múltiplas |
+| `file_read` | Read files | `path`, `limit`, `offset` |
+| `file_write` | Write files | `path`, `content` |
+| `file_search` | Search for patterns | `pattern`, `path` |
+| `grep` | Grep with regex | `pattern`, `include`, `path` |
+| `shell` | Execute commands | `command`, `timeout` |
+| `web` | Web search | `query`, `num_results` |
+| `directory_list` | List directories | `path`, `recursive` |
+| `memory_search` | Search in memory | `query`, `scope`, `limit` |
+| `crewai_tools` | External tools | Multiple |
 
-### 3.3 Schema de Parâmetros
+### 3.3 Parameter Schema
 
-Todas as tools seguem JSON Schema:
+All tools follow JSON Schema:
 
 ```python
 {
@@ -81,30 +81,30 @@ Todas as tools seguem JSON Schema:
     "properties": {
         "path": {
             "type": "string",
-            "description": "Caminho do arquivo"
+            "description": "File path"
         }
     },
     "required": ["path"]
 }
 ```
 
-### 3.4 Integração com CrewAI
+### 3.4 Integration with CrewAI
 
 ```python
 from crewai import Agent
 from crewclaw.tools import file_read, file_write
-
+-
 agent = Agent(
     tools=[file_read, file_write],
     ...
 )
 ```
 
-## 4. Implementação
+## 4. Implementation
 
 ### 4.1 Base Tool
 
-Local: `crewclaw/tools/base.py`
+Location: `crewclaw/tools/base.py`
 
 ```python
 from crewclaw.tools.base import Tool
@@ -135,15 +135,15 @@ class FileReadTool(Tool):
         pass
 ```
 
-### 4.2 Validação
+### 4.2 Validation
 
 ```python
 tool = FileReadTool()
 errors = tool.validate_params({"path": "/test.txt"})
-# [] = válido, ["error1", "error2"] = inválido
+# [] = valid, ["error1", "error2"] = invalid
 ```
 
-### 4.3 Schema OpenAI
+### 4.3 OpenAI Schema
 
 ```python
 schema = tool.to_schema()
@@ -157,9 +157,9 @@ schema = tool.to_schema()
 # }
 ```
 
-## 5. Configuração
+## 5. Configuration
 
-### 5.1 Em agents.yaml
+### 5.1 In agents.yaml
 
 ```yaml
 explorer:
@@ -170,7 +170,7 @@ explorer:
     - directory_list
 ```
 
-### 5.2 Tool Customizada
+### 5.2 Custom Tool
 
 ```python
 from crewai_tools import import_tool
@@ -178,22 +178,22 @@ from crewai_tools import import_tool
 tool = import_tool("wikipedia_search")
 ```
 
-## 6. Consequências
+## 6. Consequences
 
-### 6.1 Vantagens
+### 6.1 Advantages
 
-- **Interface统一**: Base class padrão
-- **Type-safe**: Validação de schema
-- **CrewAI compatible**: Integração automática
-- **Extensível**: Easy to add new tools
+- **Unified Interface**: Standard base class.
+- **Type-safe**: Schema validation.
+- **CrewAI compatible**: Automatic integration.
+- **Extensible**: Easy to add new tools.
 
-### 6.2 Limitações
+### 6.2 Limitations
 
-- Execução síncrona requer wrapper async
-- Sem built-in rate limiting
-- Error handling deve ser manual
+- Synchronous execution requires async wrapper.
+- No built-in rate limiting.
+- Error handling must be manual.
 
-## 7. Referências
+## 7. References
 
 - [CrewAI Tools](https://docs.crewai.com/core-concepts/tools/)
 - [JSON Schema](https://json-schema.org/)

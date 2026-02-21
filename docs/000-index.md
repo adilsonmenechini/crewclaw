@@ -13,10 +13,10 @@ Deep dive into the proactive and evolvable capabilities.
 
 ## 3. Architecture (ADR)
 Detailed architectural decisions that shaped CrewClaw.
-- [001: Sistema de Orquestração](adr/001-arquitetura-sistema.md)
-- [002: CrewAI Integration](adr/002-orquestracao-crewai.md)
-- [003: Vetorial Memory](adr/003-memoria-vetorial.md)
-- [004: Ferramentas](adr/004-ferramentas.md)
+- [001: System Architecture](adr/001-system-architecture.md)
+- [002: CrewAI Integration](adr/002-crewai-orchestration.md)
+- [003: Vector Memory](adr/003-vector-memory.md)
+- [004: Tools](adr/004-tools.md)
 - [005: Runtime ReAct](adr/005-runtime-react.md)
 - [006: Provider Utils](adr/006-provider-utils.md)
 - [007: Dynamic Orchestration](adr/007-dynamic-orchestration.md)

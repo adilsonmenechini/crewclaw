@@ -1,15 +1,18 @@
 """CLI interface for CrewClaw."""
 
+import json
 import sys
 from pathlib import Path
+
+import yaml
 
 import click
 from rich.console import Console
 from rich.table import Table
 
-from ..memory import HybridSearch, get_database
-from ..config import get_config
-from ..config.logging import setup_logging
+from crewclaw.agent.memory import HybridSearch, get_database
+from crewclaw.config import get_config
+from crewclaw.config.logging import setup_logging
 
 console = Console()
 
@@ -18,7 +21,8 @@ console = Console()
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 def cli(verbose: bool) -> None:
     """CrewClaw - Local-first autonomous agents."""
-    setup_logging()
+    level = "INFO" if verbose else "ERROR"
+    setup_logging(level_override=level)
 
 
 @cli.command()
@@ -172,7 +176,9 @@ User → Agent → Tools
 @click.argument("task")
 @click.option("--agent", "-a", default="router", help="Agent to use (default: router)")
 @click.option("--session", "-s", default=None, help="Session ID for conversation memory")
-def run(task: str, agent: str, session: str | None) -> None:
+@click.option("--verbose", is_flag=True, help="Enable verbose output")
+@click.pass_context
+def run(ctx: click.Context, task: str, agent: str, session: str | None, verbose: bool) -> None:
     """Run an agent on a task.
 
     If no agent is specified, defaults to 'router' which automatically
@@ -189,8 +195,8 @@ def run(task: str, agent: str, session: str | None) -> None:
     """
     try:
         from crewai import Task
-        from crewclaw.agents.samples import get_sample_agent
-        from crewclaw.memory import get_current_session, set_session
+        from crewclaw.agent.samples import get_sample_agent
+        from crewclaw.session import get_current_session, set_session
 
         # Set up session with memory
         if session:
@@ -209,10 +215,14 @@ def run(task: str, agent: str, session: str | None) -> None:
             )
             context_str = f"\n\nIMPORTANT CONTEXT FROM PREVIOUS CONVERSATIONS:\n{context_str}\n\nUse this context to provide more personalized responses."
 
+        # Get verbose flag from parent context
+        verbose = ctx.parent.params.get("verbose", False)
+
         if agent == "router":
-            from crewclaw.agents.samples import get_sample_agent
+            from crewclaw.agent.samples import get_sample_agent
 
             router = get_sample_agent("router")
+            router.verbose = verbose
 
             # Add context to task description
             full_task = f"{task}{context_str}"
@@ -226,6 +236,7 @@ def run(task: str, agent: str, session: str | None) -> None:
             result = router.execute_task(task_obj)
         else:
             agent_obj = get_sample_agent(agent)
+            agent_obj.verbose = verbose
 
             full_task = f"{task}{context_str}"
 
@@ -296,17 +307,76 @@ def status() -> None:
 
 
 @cli.command()
-@click.argument("path", default="./memory")
-def init(path: str) -> None:
-    """Initialize memory directory."""
-    from pathlib import Path
+@click.option("--path", "-p", default="./workspace/memory", help="Path to initialize")
+@click.option("--non-interactive", is_flag=True, help="Skip interactive setup")
+def init(path: str, non_interactive: bool) -> None:
+    """Initialize CrewClaw with interactive setup."""
 
+    console.print("\n[bold blue]Welcome to CrewClaw![/bold blue] 🚀")
+    console.print("Let's configure your local agent environment.\n")
+
+    if non_interactive:
+        _perform_basic_init(path)
+        console.print(f"[green]Initialized basic memory directory:[/green] {path}")
+        return
+
+    # 1. Identity
+    user_name = click.prompt("What is your name?", default="User")
+    ai_name = click.prompt("What should I call myself? (AI Name)", default="Orion")
+    objective = click.prompt(
+        "What is my main objective?", default="Assist with SRE, automation and task management"
+    )
+
+    # 2. LLM Config
+    console.print("\n[bold cyan]LLM Configuration[/bold cyan]")
+    provider = click.prompt(
+        "Select LLM Provider",
+        type=click.Choice(["openrouter", "google", "openai", "anthropic"]),
+        default="openrouter",
+    )
+    model = click.prompt("Select Model", default="google/gemini-2.0-flash-lite")
+    api_key = click.prompt("Enter API Key", hide_input=True)
+
+    # 3. Fallback (Optional)
+    use_fallback = click.confirm("Do you want to configure a fallback provider?", default=False)
+    fallback_config = None
+    if use_fallback:
+        f_provider = click.prompt("Fallback Provider", default="google")
+        f_model = click.prompt("Fallback Model", default="gemini-2.0-flash")
+        fallback_config = {"provider": f_provider, "model": f_model}
+
+    # 4. Telegram (Optional)
+    console.print("\n[bold cyan]Integrations[/bold cyan]")
+    use_telegram = click.confirm("Do you want to enable Telegram?", default=False)
+    telegram_token = None
+    if use_telegram:
+        telegram_token = click.prompt("Enter Telegram Bot Token", hide_input=True)
+
+    # 5. Generate Files
+    _perform_basic_init(path)
+    _save_config(
+        path, user_name, ai_name, objective, provider, model, fallback_config, use_telegram
+    )
+    _save_env(provider, api_key, telegram_token)
+    _create_workspace_templates(ai_name, objective)
+
+    console.print("\n[bold green]Success![/bold green] CrewClaw is ready.")
+    console.print(f"Identity: [bold]{ai_name}[/bold]")
+    console.print(f"Goal: {objective}")
+    console.print("\nNext steps:")
+    console.print("1. Run `crewclaw run -a assistant 'Hello'` to test.")
+    console.print("2. Explore [bold]docs/000-index.md[/bold] for more details.")
+
+
+def _perform_basic_init(path: str) -> None:
+    """Create basic memory structure."""
     mem_dir = Path(path)
     mem_dir.mkdir(parents=True, exist_ok=True)
 
     welcome = mem_dir / "welcome.md"
     if not welcome.exists():
-        welcome.write_text("""# Welcome to CrewClaw
+        welcome.write_text(
+            """# Welcome to CrewClaw
 
 This is your local memory directory. Files here will be indexed
 and available for semantic search.
@@ -316,19 +386,179 @@ and available for semantic search.
 1. Add Markdown files to this directory
 2. Run `crewclaw index` to index them
 3. Use `crewclaw search <query>` to find information
-""")
+"""
+        )
 
-    console.print(f"[green]Initialized memory directory:[/green] {path}")
+
+def _save_config(
+    path, user_name, ai_name, objective, provider, model, fallback, use_telegram
+) -> None:
+    """Save configuration to crewclaw.json."""
+    config_file = Path("crewclaw.json")
+    from crewclaw.config import get_config
+
+    cfg = get_config()._get_defaults()
+
+    cfg["project"]["memory_dir"] = str(path)
+    cfg["project"]["database_path"] = str(Path(path) / "crewclaw.db")
+    cfg["project"]["soul_path"] = str(Path(path) / "soul.md")
+
+    cfg["user"]["name"] = user_name
+    cfg["ai"]["name"] = ai_name
+    cfg["ai"]["objective"] = objective
+
+    cfg["llm"]["provider"] = provider
+    cfg["llm"]["model"] = model
+
+    # Detect correct env var
+    env_vars = {
+        "openrouter": "OPENROUTER_API_KEY",
+        "google": "GEMINI_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+    }
+    cfg["llm"]["api_key_env"] = env_vars.get(provider, "OPENROUTER_API_KEY")
+
+    if fallback:
+        cfg["llm"]["fallback"] = fallback
+
+    cfg["telegram"]["enabled"] = use_telegram
+
+    with open(config_file, "w") as f:
+        json.dump(cfg, f, indent=2)
+
+
+def _save_env(provider, api_key, telegram_token) -> None:
+    """Save API keys to .env."""
+    env_file = Path(".env")
+    lines = []
+    if env_file.exists():
+        lines = env_file.read_text().splitlines()
+
+    # Map provider to env var
+    env_var = "OPENROUTER_API_KEY"
+    if provider == "google":
+        env_var = "GEMINI_API_KEY"
+    elif provider == "openai":
+        env_var = "OPENAI_API_KEY"
+    elif provider == "anthropic":
+        env_var = "ANTHROPIC_API_KEY"
+
+    # Update or add
+    found_llm = False
+    found_tg = False
+    new_lines = []
+    for line in lines:
+        if line.startswith(f"{env_var}="):
+            new_lines.append(f"{env_var}={api_key}")
+            found_llm = True
+        elif line.startswith("TELEGRAM_BOT_TOKEN=") and telegram_token:
+            new_lines.append(f"TELEGRAM_BOT_TOKEN={telegram_token}")
+            found_tg = True
+        else:
+            new_lines.append(line)
+
+    if not found_llm:
+        new_lines.append(f"{env_var}={api_key}")
+    if not found_tg and telegram_token:
+        new_lines.append(f"TELEGRAM_BOT_TOKEN={telegram_token}")
+
+    env_file.write_text("\n".join(new_lines) + "\n")
+
+
+def _create_workspace_templates(ai_name, objective) -> None:
+    """Create initial workspace files using templates."""
+    from crewclaw.agent.samples import find_best_template
+
+    # Find best template based on user objective
+    template = find_best_template(objective)
+
+    # 1. Soul
+    soul_path = Path("./workspace/memory/soul.md")
+    soul_path.parent.mkdir(parents=True, exist_ok=True)
+    if not soul_path.exists():
+        soul_path.write_text(
+            f"""# Soul of {ai_name}
+
+## Identity
+- **Name**: {ai_name}
+- **Purpose**: {objective}
+- **Voice**: {template.get("voice", "Helpful, analytical, and precise.")}
+
+## Values
+- Prioritize security and privacy.
+- Be transparent about tool usage.
+- Learn from interactions to improve assistance.
+
+## Evolution
+- [{Path(__file__).parent.parent.parent.name}] Inicializado via onboarding interativo usando template: {template['role']}.
+"""
+        )
+
+    # 2. Agent
+    agents_dir = Path("./workspace/agents")
+    agents_dir.mkdir(parents=True, exist_ok=True)
+    assistant_yaml = agents_dir / "assistant.yaml"
+    if not assistant_yaml.exists():
+        agent_cfg = {
+            "assistant": {
+                "role": f"{ai_name} - {template['role']}",
+                "goal": objective,
+                "backstory": f"You are {ai_name}. {template['backstory']}",
+                "tools": template["tools"],
+                "verbose": True,
+            }
+        }
+        if template.get("allow_delegation"):
+            agent_cfg["assistant"]["allow_delegation"] = True
+
+        with open(assistant_yaml, "w") as f:
+            yaml.dump(agent_cfg, f)
+
+    # 3. Task
+    tasks_dir = Path("./workspace/tasks")
+    tasks_dir.mkdir(parents=True, exist_ok=True)
+    start_task = tasks_dir / "getting_started.yaml"
+    if not start_task.exists():
+        task_cfg = {
+            "hello_task": {
+                "description": f"Introduce yourself as {ai_name} and explain how you can help with: {objective}",
+                "expected_output": "A friendly introduction and a brief summary of capabilities.",
+                "agent": "assistant",
+            }
+        }
+        with open(start_task, "w") as f:
+            yaml.dump(task_cfg, f)
+
+    # 4. Hello Skill
+    skills_dir = Path("./workspace/skills")
+    skills_dir.mkdir(parents=True, exist_ok=True)
+    hello_skill = skills_dir / "hello.md"
+    if not hello_skill.exists():
+        hello_skill.write_text(
+            f"""---
+name: "say_hello"
+description: "Generates a personalized greeting."
+parameters:
+  name: "The name to greet"
+---
+
+```python
+def execute(name="User"):
+    return f"Hello {{name}}! I am {ai_name}, your new assistant focused on {objective}."
+```
+"""
+        )
 
 
 @cli.command()
-@click.argument("path", default="./memory")
+@click.argument("path", default="./workspace/memory")
 def index(path: str) -> None:
     """Index memory files into vector store."""
     from pathlib import Path
 
     try:
-        from ..memory import get_database, create_embedder, Chunker, VectorStore
+        from crewclaw.agent.memory import get_database, create_embedder, Chunker, VectorStore
     except ImportError as e:
         console.print(f"[red]Erro ao importar módulos: {e}[/red]")
         console.print("[yellow]Execute: pip install -e .[/yellow]")
@@ -373,7 +603,7 @@ def index(path: str) -> None:
 
 
 @cli.command()
-@click.option("--path", "-p", default="./memory", help="Path to watch")
+@click.option("--path", "-p", default="./workspace/memory", help="Path to watch")
 @click.option("--recursive/--no-recursive", default=True, help="Watch recursively")
 def watch(path: str, recursive: bool) -> None:
     """Watch memory directory for changes and auto-index.
@@ -382,10 +612,10 @@ def watch(path: str, recursive: bool) -> None:
     directory for changes and automatically indexes new content.
 
     Example:
-        crewclaw watch --path ./memory
+        crewclaw watch --path ./workspace/memory
     """
-    from ..runtime.watcher import FileWatcher
-    from ..memory import Chunker, VectorStore, create_embedder
+    from crewclaw.agent.watcher import FileWatcher
+    from crewclaw.agent.memory import Chunker, VectorStore, create_embedder
 
     console.print(f"[cyan]Iniciando watcher em: {path}[/cyan]")
     console.print("[yellow]Press Ctrl+C para parar[/yellow]")

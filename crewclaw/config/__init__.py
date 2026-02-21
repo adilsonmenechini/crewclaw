@@ -23,6 +23,13 @@ class Config:
 
     def load(self, config_path: str | None = None) -> None:
         """Load configuration from file."""
+        # Load environment variables from .env if it exists
+        try:
+            from dotenv import load_dotenv
+            load_dotenv()
+        except ImportError:
+            pass
+
         if config_path is None:
             config_path = os.environ.get("CREWCLAW_CONFIG", "crewclaw.json")
 
@@ -39,8 +46,34 @@ class Config:
             "version": "1.0.0",
             "project": {
                 "name": "crewclaw",
-                "memory_dir": "./memory",
-                "database_path": "./memory/crewclaw.db",
+                "memory_dir": "./workspace/memory",
+                "database_path": "./workspace/memory/crewclaw.db",
+                "soul_path": "./workspace/memory/soul.md",
+                "skills_dir": "./workspace/skills",
+                "agents_dir": "./workspace/agents",
+                "tasks_dir": "./workspace/tasks",
+                "mcp_dir": "./workspace/mcp",
+                "custom_tools_dir": "./workspace/custom_tools",
+            },
+            "llm": {
+                "provider": "openrouter",
+                "model": "openrouter/google/gemini-2.0-flash-lite",
+                "fallback": {
+                    "provider": "google",
+                    "model": "gemini-2.0-flash",
+                },
+                "api_key_env": "OPENROUTER_API_KEY",
+            },
+            "user": {
+                "name": "User",
+            },
+            "ai": {
+                "name": "CrewClaw",
+                "objective": "Assist with SRE, automation and task management",
+            },
+            "telegram": {
+                "enabled": False,
+                "token_env": "TELEGRAM_BOT_TOKEN",
             },
             "embedding": {
                 "provider": "sentence-transformers",

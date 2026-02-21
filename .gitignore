@@ -4,8 +4,7 @@
 crewclaw.json
 logs
 openspec
-docs/old
-memory/*.db
+workspace/memory/*.db
 
 
 # Byte-compiled / optimized / DLL files

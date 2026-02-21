@@ -7,7 +7,7 @@ from pathlib import Path
 from ..config import get_config
 
 
-def setup_logging(name: str | None = None) -> logging.Logger:
+def setup_logging(name: str | None = None, level_override: str | None = None) -> logging.Logger:
     """Set up logging for CrewClaw.
 
     Args:
@@ -22,7 +22,7 @@ def setup_logging(name: str | None = None) -> logging.Logger:
     if logger.handlers:
         return logger
 
-    level = config.get("logging.level", "INFO")
+    level = level_override or config.get("logging.level", "INFO")
     log_format = config.get(
         "logging.format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )

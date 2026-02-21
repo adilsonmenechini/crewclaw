@@ -7,23 +7,25 @@ Sistema de agentes autônomos com memória persistente local.
 CrewClaw é um framework de agentes AI que combina:
 - **Orquestração**: CrewAI para gestão de múltiplos agentes
 - **Memória Vetorial**: SQLite + sqlite-vec para busca semântica
-- **Execução Autônoma**: Runtime ReAct com watchdog
+- **Execução Autônoma**: Runtime ReAct com watchdog e Heartbeat
+- **Skills Dinâmicas**: Registro de ferramentas via arquivos Markdown/YAML
+- **Identidade e Alma**: Personalidade evolutiva do agente
 - **Privacidade**: 100% local, zero dependência cloud
 
 ## Documentação
 
-📚 **Documentação completa**: [docs/adr/](docs/adr/)
+📚 **Guia de Início Rápido e Índice**: [docs/000-index.md](docs/000-index.md)
+
+### Conceitos Principais
+
+| Guia | Descrição |
+|------|-----------|
+| [Skills, Agents, and Tasks](docs/core/triad-orchestration.md) | A tríade fundamental de orquestração do CrewClaw |
+| [Módulos Avançados](docs/features/advanced-modules.md) | Soul, Heartbeat, Hooks, Bridge e Auto-melhoria |
 
 ### Arquitetura de Decisões (ADR)
 
-| ADR | Título |
-|-----|--------|
-| [001](docs/adr/001-arquitetura-sistema.md) | Arquitetura Geral do Sistema |
-| [002](docs/adr/002-orquestracao-crewai.md) | Orquestração com CrewAI |
-| [003](docs/adr/003-memoria-vetorial.md) | Memória Vetorial SQLite-vec |
-| [004](docs/adr/004-ferramentas.md) | Sistema de Ferramentas |
-| [005](docs/adr/005-runtime-react.md) | Runtime ReAct |
-| [006](docs/adr/006-provider-utils.md) | Módulos Provider e Utils |
+Grouped by evolution and major decisions. [Ver todos os ADRs](docs/adr/)
 
 ## Quick Start
 
@@ -34,126 +36,80 @@ CrewClaw é um framework de agentes AI que combina:
 git clone https://github.com/your-org/crewclaw.git
 cd crewclaw
 
-# Crie ambiente virtual
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# ou
-venv\Scripts\activate     # Windows
-
-# Instale dependências
-pip install -r requirements.txt
-
-# Configure as variáveis de ambiente
-cp .env.example .env
-# Edite .env com suas configurações
+# Instale via pip (modo editável recomendado)
+pip install -e .
 ```
 
-### Configuração
+### 🚀 Onboarding Inteligente (Recomendado)
 
-Edite `crewclaw.json` para ajustar:
-
-```json
-{
-  "llm": {
-    "provider": "openrouter",
-    "model": "openrouter/google/gemini-2.5-flash"
-  },
-  "embedding": {
-    "provider": "sentence-transformers",
-    "model": "sentence-transformers/all-MiniLM-L6-v2"
-  },
-  "runtime": {
-    "max_iterations": 20,
-    "watchdog_enabled": true
-  }
-}
-```
-
-### Executando Agentes
-
-#### Via CLI
+O CrewClaw possui um assistente que configura tudo para você, desde o provedor de LLM até a identidade inicial da sua IA.
 
 ```bash
-# Executar agente
-crewclaw run --agent explorer --task "Analise o projeto"
-
-# Listar agentes disponíveis
-crewclaw agents list
-
-# Buscar na memória
-crewclaw memory search "conceito relevante"
+crewclaw init
 ```
+
+Este comando irá:
+1. Configurar o **provedor e modelo** de LLM.
+2. Definir a **identidade** (Soul) e o objetivo central do seu agente.
+3. Criar uma estrutura de **workspace** com agentes e tasks prontos para uso.
+
+---
+
+## Como Usar
+
+### 1. Rodar um Agente
+Após o `init`, você pode rodar o assistente padrão:
+```bash
+uv run crewclaw run -a assistant "Resuma os arquivos do meu projeto"
+```
+
+Para ver logs detalhados de execução (pensamentos da IA, ferramentas sendo chamadas):
+```bash
+uv run crewclaw run -a assistant "Resuma o projeto" --verbose
+```
+
+### 2. Buscar na Memória
+O CrewClaw indexa automaticamente seus arquivos Markdown em `workspace/memory/`:
+```bash
+uv run crewclaw search "objetivos do projeto"
+```
+
+### 3. Personalizar o Workspace
+Toda a lógica está no diretório `workspace/`:
+- **`agents/`**: Defina novos agentes via YAML.
+- **`tasks/`**: Agende missões específicas.
+- **`skills/`**: Crie ferramentas Python dinâmicas usando Markdown.
+
+---
 
 ## Estrutura do Projeto
 
 ```
-crewclaw/
-├── crewclaw/
-│   ├── agents/       # Factory e Crew
-│   ├── cli/          # Interface de linha de comando
-│   ├── config/       # Gestão de configuração JSON
-│   ├── memory/       # Persistência: SQLite, Markdown, busca híbrida
-│   ├── provider/     # Abstrações de provedores de IA (LLM, Embedder)
-│   ├── runtime/      # Executor ReAct + Watchdog
-│   ├── tools/        # Ferramentas do sistema
-│   └── utils/        # Utilitários transversais (logging, errors, text)
-├── memory/           # Memória persistente (Markdown + SQLite)
-├── logs/             # Logs de execução
-└── docs/
-    └── adr/          # ADRs
+workspace/
+├── memory/           # Soul (identidade), .md indexados e SQLite
+├── agents/           # Configurações dinâmicas de agentes (.yaml)
+├── tasks/            # Definições de missões (.yaml)
+├── skills/           # Ferramentas personalizadas (.md)
+├── mcp/              # Integrações via Model Context Protocol
+└── custom_tools/     # Ferramentas Python nativas
 ```
 
-## Módulos Principais
+## Configuração Avançada
 
-### `crewclaw.provider` — Provedores de IA
-
-```python
-from crewclaw.provider import LiteLLM, create_llm
-from crewclaw.provider import create_embedder, SentenceTransformersEmbedder
-from crewclaw.provider import LiteLLMForCrewAI, create_crewai_llm
+O arquivo `crewclaw.json` (gerado pelo `init`) permite ajustes finos:
+```json
+{
+  "llm": {
+    "provider": "openrouter",
+    "model": "google/gemini-2.0-flash-lite",
+    "fallback": { "provider": "google", "model": "gemini-2.0-flash" }
+  },
+  "telegram": { "enabled": false }
+}
 ```
 
-### `crewclaw.utils` — Utilitários
-
-```python
-from crewclaw.utils import get_logger, CrewClawError
-from crewclaw.utils import truncate, slugify, sanitize_filename
-```
-
-## Ferramentas Disponíveis
-
-| Tool | Descrição |
-|------|-----------|
-| `file_read` | Ler arquivos |
-| `file_write` | Escrever arquivos |
-| `grep` | Busca por padrões |
-| `shell` | Executar comandos |
-| `web` | Busca na web |
-| `memory_search` | Buscar na memória vetorial |
-
-## Configuração de Agentes
-
-Arquivo: `config/agents.yaml`
-
-```yaml
-explorer:
-  role: "Code Explorer"
-  goal: "Find relevant code patterns"
-  backstory: "Expert at analyzing codebases"
-  tools:
-    - file_read
-    - grep
-  max_iter: 10
-```
-
-## Ambiente
-
-| Variável | Descrição |
-|----------|-----------|
-| `CREWCLAW_CONFIG` | Path para config JSON |
-| `CREWCLAW_AGENTS_CONFIG` | Path para agents YAML |
-| `OPENROUTER_API_KEY` | API key para LLM |
+## Documentação Completa
+📚 [docs/000-index.md](docs/000-index.md)
 
 ## License
-
 MIT

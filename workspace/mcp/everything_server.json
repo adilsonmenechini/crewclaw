@@ -1,0 +1,10 @@
+{
+    "command": "npx",
+    "args": [
+        "-y",
+        "@modelcontextprotocol/server-everything"
+    ],
+    "env": {
+        "NODE_ENV": "production"
+    }
+}

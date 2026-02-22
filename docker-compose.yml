@@ -1,0 +1,22 @@
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: crewclaw:local
+    container_name: crewclaw-agent
+    volumes:
+      - crewclaw_workspace:/app
+      - /app/.venv
+      - hf_cache:/root/.cache/huggingface
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HF_HOME=/root/.cache/huggingface
+    # Mantém o container vivo sem gastar tokens. 
+    # Agora que o ENTRYPOINT foi removido do Dockerfile, não há mais conflito.
+    command: [ "tail", "-f", "/dev/null" ]
+
+volumes:
+  crewclaw_workspace:
+  hf_cache:

@@ -1,0 +1,39 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.coverage
+htmlcov/
+nosetests.xml
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Project specific
+logs/
+workspace/memory/*.db
+workspace/memory/*.sqlite
+.env
+crewclaw.json
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build
+dist/
+build/
+*.egg-info/

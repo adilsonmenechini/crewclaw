@@ -22,8 +22,7 @@ pip-delete-this-directory.txt
 
 # Project specific
 logs/
-workspace/memory/*.db
-workspace/memory/*.sqlite
+workspace/*
 .env
 crewclaw.json
 

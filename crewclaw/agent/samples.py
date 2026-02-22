@@ -80,7 +80,18 @@ AGENT_TEMPLATES: Dict[str, Dict[str, Any]] = {
 
 def get_template(name: str) -> Dict[str, Any]:
     """Get an agent template by name."""
-    return AGENT_TEMPLATES.get(name, AGENT_TEMPLATES["assistant"])
+    from crewclaw.config import get_config
+    config = get_config()
+    
+    tpl = AGENT_TEMPLATES.get(name, AGENT_TEMPLATES["assistant"]).copy()
+    
+    # Inject configured AI name into backstory or role if it's the main assistant
+    ai_name = config.get("ai.name")
+    if ai_name and ai_name != "CrewClaw":
+        if "backstory" in tpl:
+            tpl["backstory"] = f"Your name is {ai_name}. {tpl['backstory']}"
+            
+    return tpl
 
 def find_best_template(objective: str) -> Dict[str, Any]:
     """Find the most suitable template based on a description string."""
@@ -98,25 +109,80 @@ def find_best_template(objective: str) -> Dict[str, Any]:
 
 # Backward compatibility layer
 def create_researcher_agent() -> Agent:
-    tpl = AGENT_TEMPLATES["researcher"]
-    return Agent(role=tpl["role"], goal=tpl["goal"], backstory=tpl["backstory"], llm=get_llm(), tools=[WebSearchTool(), WebFetchTool(), FileReadToolCrewAI()])
+    tpl = get_template("researcher")
+    from crewclaw.config import get_config
+    ai_name = get_config().get("ai.name", "CrewClaw")
+    return Agent(
+        role=f"{ai_name} - {tpl['role']}",
+        goal=tpl["goal"],
+        backstory=f"You are {ai_name}. {tpl['backstory']}",
+        llm=get_llm(),
+        tools=[WebSearchTool(), WebFetchTool(), FileReadToolCrewAI()]
+    )
 
 def create_writer_agent() -> Agent:
-    tpl = AGENT_TEMPLATES["writer"]
-    return Agent(role=tpl["role"], goal=tpl["goal"], backstory=tpl["backstory"], llm=get_llm(), tools=[FileWriteToolCrewAI(), FileReadToolCrewAI()])
+    tpl = get_template("writer")
+    from crewclaw.config import get_config
+    ai_name = get_config().get("ai.name", "CrewClaw")
+    return Agent(
+        role=f"{ai_name} - {tpl['role']}",
+        goal=tpl["goal"],
+        backstory=f"You are {ai_name}. {tpl['backstory']}",
+        llm=get_llm(),
+        tools=[FileWriteToolCrewAI(), FileReadToolCrewAI()]
+    )
 
 def create_router_agent() -> Agent:
-    tpl = AGENT_TEMPLATES["router"]
-    return Agent(role=tpl["role"], goal=tpl["goal"], backstory=tpl["backstory"], llm=get_llm(), tools=get_all_tools(), allow_delegation=True)
+    tpl = get_template("router")
+    from crewclaw.config import get_config
+    config = get_config()
+    ai_name = config.get("ai.name", "CrewClaw")
+    objective = config.get("ai.objective", "Assist with SRE, automation and task management")
+    return Agent(
+        role=f"{ai_name} - {tpl['role']}",
+        goal=objective,
+        backstory=f"You are {ai_name}. {tpl['backstory']}",
+        llm=get_llm(),
+        tools=get_all_tools(),
+        allow_delegation=True
+    )
 
 def get_sample_agent(name: str) -> Agent:
     """Legacy helper to get an agent. Prefers workspace instead if possible."""
-    if name == "router": return create_router_agent()
+    from crewclaw.config import get_config
+    config = get_config()
+    ai_name = config.get("ai.name", "CrewClaw")
+    objective = config.get("ai.objective", "Assist with SRE, automation and task management")
+
+    if name == "router":
+        tpl = AGENT_TEMPLATES["router"]
+        return Agent(
+            role=f"{ai_name} - {tpl['role']}",
+            goal=objective,
+            backstory=f"You are {ai_name}. {tpl['backstory']}",
+            llm=get_llm(),
+            tools=get_all_tools(),
+            allow_delegation=True
+        )
+    
     if name == "researcher": return create_researcher_agent()
     if name == "writer": return create_writer_agent()
     
     tpl = get_template(name)
-    return Agent(role=tpl["role"], goal=tpl["goal"], backstory=tpl["backstory"], llm=get_llm())
+    role = tpl["role"]
+    goal = tpl["goal"]
+    backstory = tpl["backstory"]
+
+    # For the general 'assistant' or 'router', use the configured objective
+    if name in ["assistant", "router"]:
+        goal = objective
+
+    return Agent(
+        role=f"{ai_name} - {role}",
+        goal=goal,
+        backstory=f"You are {ai_name}. {backstory}",
+        llm=get_llm()
+    )
 
 # Registry for legacy references
 SAMPLE_AGENTS = {k: lambda n=k: get_sample_agent(n) for k in AGENT_TEMPLATES.keys()}

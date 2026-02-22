@@ -6,7 +6,7 @@ services:
     image: crewclaw:local
     container_name: crewclaw-agent
     volumes:
-      - crewclaw_workspace:/app
+      - crewclaw_data:/app
       - /app/.venv
       - hf_cache:/root/.cache/huggingface
     restart: unless-stopped
@@ -18,5 +18,5 @@ services:
     command: [ "tail", "-f", "/dev/null" ]
 
 volumes:
-  crewclaw_workspace:
+  crewclaw_data:
   hf_cache:

@@ -397,7 +397,7 @@ def _save_config(
     config_file = Path("crewclaw.json")
     from crewclaw.config import get_config
 
-    cfg = get_config()._get_defaults()
+    cfg = get_config().config.copy()
 
     cfg["project"]["memory_dir"] = str(path)
     cfg["project"]["database_path"] = str(Path(path) / "crewclaw.db")
@@ -472,83 +472,84 @@ def _create_workspace_templates(ai_name, objective) -> None:
 
     # Find best template based on user objective
     template = find_best_template(objective)
+    base_dir = Path(__file__).parent.parent / "base"
+
+    def _render(content, mapping):
+        for key, value in mapping.items():
+            content = content.replace(f"{{{{{key}}}}}", str(value))
+        return content
 
     # 1. Soul
     soul_path = Path("./workspace/memory/soul.md")
     soul_path.parent.mkdir(parents=True, exist_ok=True)
-    if not soul_path.exists():
-        soul_path.write_text(
-            f"""# Soul of {ai_name}
-
-## Identity
-- **Name**: {ai_name}
-- **Purpose**: {objective}
-- **Voice**: {template.get("voice", "Helpful, analytical, and precise.")}
-
-## Values
-- Prioritize security and privacy.
-- Be transparent about tool usage.
-- Learn from interactions to improve assistance.
-
-## Evolution
-- [{Path(__file__).parent.parent.parent.name}] Inicializado via onboarding interativo usando template: {template['role']}.
-"""
-        )
+    
+    soul_tpl_path = base_dir / "memory" / "soul.md.template"
+    if soul_tpl_path.exists():
+        soul_content = _render(soul_tpl_path.read_text(), {
+            "ai_name": ai_name,
+            "objective": objective,
+            "voice": template.get("voice", "Helpful, analytical, and precise."),
+            "role": template['role']
+        })
+        
+        if not soul_path.exists():
+            soul_path.write_text(soul_content)
+        else:
+            existing = soul_path.read_text()
+            if f"# Soul of {ai_name}" not in existing:
+                 soul_path.write_text(soul_content + "\n\n" + "## Previous Content\n" + existing)
 
     # 2. Agent
     agents_dir = Path("./workspace/agents")
     agents_dir.mkdir(parents=True, exist_ok=True)
     assistant_yaml = agents_dir / "assistant.yaml"
-    if not assistant_yaml.exists():
-        agent_cfg = {
-            "assistant": {
-                "role": f"{ai_name} - {template['role']}",
-                "goal": objective,
-                "backstory": f"You are {ai_name}. {template['backstory']}",
-                "tools": template["tools"],
-                "verbose": True,
-            }
+    
+    agent_tpl_path = base_dir / "agents" / "assistant.yaml.template"
+    if agent_tpl_path.exists():
+        mapping = {
+            "ai_name": ai_name,
+            "role": template['role'],
+            "objective": objective,
+            "backstory": template['backstory'],
+            "tools": json.dumps(template['tools'])
         }
+        agent_content = _render(agent_tpl_path.read_text(), mapping)
+        
+        # Simple conditional handling for delegation since we don't use full Jinja2 here
         if template.get("allow_delegation"):
-            agent_cfg["assistant"]["allow_delegation"] = True
+            agent_content = agent_content.replace("{% if allow_delegation %}\n  allow_delegation: true\n{% endif %}", "  allow_delegation: true")
+        else:
+            import re
+            agent_content = re.sub(r"{% if allow_delegation %}.*?{% endif %}", "", agent_content, flags=re.DOTALL)
 
         with open(assistant_yaml, "w") as f:
-            yaml.dump(agent_cfg, f)
+            f.write(agent_content)
 
     # 3. Task
     tasks_dir = Path("./workspace/tasks")
     tasks_dir.mkdir(parents=True, exist_ok=True)
     start_task = tasks_dir / "getting_started.yaml"
-    if not start_task.exists():
-        task_cfg = {
-            "hello_task": {
-                "description": f"Introduce yourself as {ai_name} and explain how you can help with: {objective}",
-                "expected_output": "A friendly introduction and a brief summary of capabilities.",
-                "agent": "assistant",
-            }
-        }
-        with open(start_task, "w") as f:
-            yaml.dump(task_cfg, f)
+    
+    task_tpl_path = base_dir / "tasks" / "getting_started.yaml.template"
+    if task_tpl_path.exists() and not start_task.exists():
+        task_content = _render(task_tpl_path.read_text(), {
+            "ai_name": ai_name,
+            "objective": objective
+        })
+        start_task.write_text(task_content)
 
     # 4. Hello Skill
     skills_dir = Path("./workspace/skills")
     skills_dir.mkdir(parents=True, exist_ok=True)
     hello_skill = skills_dir / "hello.md"
-    if not hello_skill.exists():
-        hello_skill.write_text(
-            f"""---
-name: "say_hello"
-description: "Generates a personalized greeting."
-parameters:
-  name: "The name to greet"
----
-
-```python
-def execute(name="User"):
-    return f"Hello {{name}}! I am {ai_name}, your new assistant focused on {objective}."
-```
-"""
-        )
+    
+    skill_tpl_path = base_dir / "skills" / "hello.md.template"
+    if skill_tpl_path.exists() and not hello_skill.exists():
+        skill_content = _render(skill_tpl_path.read_text(), {
+            "ai_name": ai_name,
+            "objective": objective
+        })
+        hello_skill.write_text(skill_content)
 
 
 @cli.command()

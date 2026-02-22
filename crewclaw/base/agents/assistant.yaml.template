@@ -1,0 +1,9 @@
+assistant:
+  role: "{{ai_name}} - {{role}}"
+  goal: "{{objective}}"
+  backstory: "You are {{ai_name}}. {{backstory}}"
+  tools: {{tools}}
+  verbose: true
+{% if allow_delegation %}
+  allow_delegation: true
+{% endif %}

@@ -64,7 +64,7 @@ class LiteLLMForCrewAI:
         return self._client
 
     def chat(self, messages: list[dict]) -> str:
-        """Generate chat completion.
+        """Generate chat completion with retries.
 
         Args:
             messages: List of message dicts.
@@ -72,19 +72,38 @@ class LiteLLMForCrewAI:
         Returns:
             Response text.
         """
+        import time
+        config = get_config()
+        max_retries = config.get("runtime.max_retry_limit", 5)
         client = self._get_client()
 
-        response = client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-            api_key=self.api_key,
-            base_url=self.base_url,
-            **self.extra_params,
-        )
+        for attempt in range(max_retries + 1):
+            try:
+                response = client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                    api_key=self.api_key,
+                    base_url=self.base_url,
+                    **self.extra_params,
+                )
 
-        return response.choices[0].message.content
+                return response.choices[0].message.content
+            except Exception as e:
+                if attempt == max_retries:
+                    logger.error(f"LLM call failed after {max_retries} retries: {e}")
+                    raise
+
+                wait_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s...
+                logger.warning(
+                    f"LLM call failed: {e}. Retrying in {wait_time}s... "
+                    f"(Attempt {attempt + 1}/{max_retries})"
+                )
+                time.sleep(wait_time)
+
+        # Fallback (should not be reached due to raise in loop)
+        return ""
 
     def call(self, messages: list[dict]) -> str:
         """Alias for chat (CrewAI compatibility)."""

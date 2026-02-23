@@ -13,6 +13,7 @@ def LiteLLMForCrewAI(
     model: str | None = None,
     api_key: str | None = None,
     base_url: str | None = None,
+    fallbacks: list[str] | None = None,
     **kwargs,
 ):
     """Factory for creating CrewAI-compatible LLM using LiteLLM.
@@ -21,6 +22,9 @@ def LiteLLMForCrewAI(
     """
     import litellm
     from crewai import LLM
+    from .llm import setup_litellm
+
+    setup_litellm()
 
     # Enable verbose logging for debugging
     os.environ["LITELLM_LOG"] = "DEBUG"
@@ -40,6 +44,7 @@ def LiteLLMForCrewAI(
             api_key = os.environ.get(env_key)
 
     base_url = base_url or config.get("llm.base_url")
+    fallbacks = fallbacks or config.get("llm.fallbacks", [])
 
     temperature = config.get("llm.temperature", 0.7)
     max_tokens = config.get("llm.max_tokens", 4096)
@@ -52,6 +57,7 @@ def LiteLLMForCrewAI(
         base_url=base_url,
         temperature=temperature,
         max_tokens=max_tokens,
+        fallbacks=fallbacks,
         **kwargs,
     )
 

@@ -192,6 +192,7 @@ def run(ctx: click.Context, task: str, agent: str, session: str | None, verbose:
         crewclaw run -a writer "Escreva um arquivo"
         crewclaw run -s my-session "continuar..."  # Continue from previous session
     """
+    setup_diagnostics()
     try:
         from crewai import Task
         from crewclaw.agent.samples import get_sample_agent
@@ -214,9 +215,8 @@ def run(ctx: click.Context, task: str, agent: str, session: str | None, verbose:
             )
             context_str = f"\n\nIMPORTANT CONTEXT FROM PREVIOUS CONVERSATIONS:\n{context_str}\n\nUse this context to provide more personalized responses."
 
-        # Get verbose flag from parent context
-        verbose = False
-        if ctx.parent:
+        # Use the verbose flag from the command option
+        if not verbose and ctx.parent:
             verbose = ctx.parent.params.get("verbose", False)
 
         if agent == "router":
@@ -305,6 +305,122 @@ def status() -> None:
     )
 
     console.print(table)
+
+
+def setup_diagnostics():
+    """Setup warning filters and LiteLLM suppression for CLI commands."""
+    import warnings
+    import litellm
+    
+    # Suppress noisy warnings
+    warnings.filterwarnings("ignore", category=RuntimeWarning)
+    warnings.filterwarnings("ignore", message=".*coroutine.*")
+    
+    # Disable LiteLLM logging worker noise
+    litellm.suppress_debug_info = True
+    litellm.set_verbose = False
+    litellm.turn_off_message_logging = True
+    litellm.telemetry = False
+
+    # Forcefully prevent the worker thread from starting with an async dummy
+    try:
+        import litellm.litellm_core_utils.logging_worker as lw
+        async def dummy_worker(*args, **kwargs): pass
+        lw.LoggingWorker._worker_loop = dummy_worker # type: ignore
+    except (ImportError, AttributeError):
+        pass
+
+@cli.command()
+def health() -> None:
+    """Verify system health and connectivity."""
+    import os
+    from contextlib import contextmanager
+    setup_diagnostics()
+
+    @contextmanager
+    def silence_output():
+        """Context manager to muffle all stdout/stderr."""
+        new_out, new_err = os.open(os.devnull, os.O_WRONLY), os.open(os.devnull, os.O_WRONLY)
+        old_out, old_err = os.dup(sys.stdout.fileno()), os.dup(sys.stderr.fileno())
+        try:
+            os.dup2(new_out, sys.stdout.fileno())
+            os.dup2(new_err, sys.stderr.fileno())
+            yield
+        finally:
+            os.dup2(old_out, sys.stdout.fileno())
+            os.dup2(old_err, sys.stderr.fileno())
+            os.close(new_out)
+            os.close(new_err)
+            os.close(old_out)
+            os.close(old_err)
+    
+    from crewclaw.utils.health import check_system
+
+    console.print("\n[bold blue]CrewClaw Diagnostics[/bold blue] 🩺")
+    
+    with silence_output():
+        results = check_system()
+
+    # Restore and show tables
+    llm_table = Table(title="LLM Providers Health")
+    llm_table.add_column("Type", style="cyan")
+    llm_table.add_column("Model", style="white")
+    llm_table.add_column("Status", style="bold")
+    llm_table.add_column("Latency/Details", style="magenta")
+
+    for i, res in enumerate(results["llm"]):
+        ptype = "Primary" if i == 0 else f"Fallback {i}"
+        status_style = "green" if res["status"] == "ok" else "red"
+        llm_table.add_row(
+            ptype,
+            res["model"],
+            f"[{status_style}]{res['status'].upper()}[/{status_style}]",
+            res.get("latency", res.get("error", "N/A"))
+        )
+    
+    console.print(llm_table)
+
+    # 2. Database Table
+    db_res = results["database"]
+    db_table = Table(title="Database Health")
+    db_table.add_column("Component", style="cyan")
+    db_table.add_column("Status", style="bold")
+    db_table.add_column("Details", style="white")
+
+    db_status_style = "green" if db_res["status"] == "ok" else "yellow" if db_res["status"] == "warning" else "red"
+    
+    db_table.add_row("SQLite Connection", "[green]OK[/green]", f"Path: {db_res['path']}")
+    db_table.add_row("Vector Extension", 
+                     f"[{db_status_style}]{db_res['status'].upper()}[/{db_status_style}]", 
+                     db_res.get("vector_extension", "Unknown"))
+    db_table.add_row("Vectors Count", "[white]INFO[/white]", str(db_res.get("vectors", 0)))
+    
+    console.print(db_table)
+
+    # 3. Environment Table
+    env_res = results["environment"]
+    env_table = Table(title="Environment Health")
+    env_table.add_column("Check", style="cyan")
+    env_table.add_column("Status", style="bold")
+    
+    writable_style = "green" if env_res["writable"] else "red"
+    env_table.add_row("Memory Dir Writable", f"[{writable_style}]{'YES' if env_res['writable'] else 'NO'}[/{writable_style}]")
+    
+    console.print(env_table)
+
+    # Success logic: 
+    # 1. Primary LLM must be OK
+    # 2. Database must not be ERROR
+    # 3. Memory dir must be writable
+    primary_ok = results["llm"][0]["status"] == "ok"
+    db_ok = db_res["status"] in ("ok", "warning")
+    env_ok = env_res["writable"]
+
+    if not primary_ok or not db_ok or not env_ok:
+        console.print("\n[bold red]Critical issues detected![/bold red] System may not function correctly.")
+        sys.exit(1)
+    else:
+        console.print("\n[bold green]System is healthy![/bold green] 🚀")
 
 
 @cli.command()

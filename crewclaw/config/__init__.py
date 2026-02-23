@@ -23,11 +23,13 @@ class Config:
 
     def load(self, config_path: str | None = None) -> None:
         """Load configuration from file."""
-        # Load environment variables from .env if it exists
+        # Load environment variables from .env / .env-local if they exist
         try:
             from dotenv import load_dotenv
-
-            load_dotenv()
+            
+            # Load .env first, then .env-local to allow overrides
+            load_dotenv(".env")
+            load_dotenv(".env-local")
         except ImportError:
             pass
 
@@ -59,10 +61,10 @@ class Config:
             "llm": {
                 "provider": "openrouter",
                 "model": "openrouter/google/gemini-2.0-flash-lite",
-                "fallback": {
-                    "provider": "google",
-                    "model": "gemini-2.0-flash",
-                },
+                "fallbacks": [
+                    "gemini/gemini-2.0-flash",
+                    "openai/gpt-4o-mini"
+                ],
                 "api_key_env": "OPENROUTER_API_KEY",
             },
             "user": {

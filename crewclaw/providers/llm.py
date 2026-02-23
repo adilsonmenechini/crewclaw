@@ -9,6 +9,80 @@ from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+def setup_litellm():
+    """Ensure litellm is configured with monkeypatches and fallback fixes."""
+    try:
+        import litellm
+        if not hasattr(litellm, "_original_completion"):
+            litellm._original_completion = litellm.completion
+
+            def wrapped_completion(*args, **kwargs):
+                # Sanitize fallbacks for original LiteLLM call (it expects a list of strings)
+                original_fallbacks = kwargs.get("fallbacks", [])
+                sanitized_fallbacks = [
+                    f["model"] if isinstance(f, dict) else f for f in original_fallbacks
+                ]
+                kwargs_main = kwargs.copy()
+                if original_fallbacks:
+                    kwargs_main["fallbacks"] = sanitized_fallbacks
+
+                # Call original completion
+                response = litellm._original_completion(*args, **kwargs_main)
+                
+                # Check for empty response in choices
+                if hasattr(response, "choices") and response.choices:
+                    content = response.choices[0].message.content
+                    if not content or not content.strip():
+                        model = kwargs.get("model", "unknown")
+                        fallbacks = kwargs.get("fallbacks", [])
+                        
+                        if fallbacks:
+                            next_fallback = fallbacks[0]
+                            remaining_fallbacks = fallbacks[1:]
+                            
+                            # Update kwargs for the next attempt
+                            new_kwargs = kwargs.copy()
+                            
+                            if isinstance(next_fallback, dict):
+                                next_model = next_fallback.get("model", "unknown")
+                                next_key = next_fallback.get("api_key")
+                                if not next_key and "api_key_env" in next_fallback:
+                                    next_key = os.environ.get(next_fallback["api_key_env"])
+                                
+                                if next_key:
+                                    new_kwargs["api_key"] = next_key
+                                
+                                if "base_url" in next_fallback:
+                                    new_kwargs["base_url"] = next_fallback["base_url"]
+                            else:
+                                next_model = next_fallback
+
+                            logger.warning(
+                                f"Empty response from {model}. "
+                                f"Manually triggering fallback to: {next_model}. "
+                                f"Remaining fallbacks: {len(remaining_fallbacks)}"
+                            )
+                            
+                            new_kwargs["model"] = next_model
+                            new_kwargs["fallbacks"] = remaining_fallbacks
+                            
+                            # Recursively call the wrapped version
+                            try:
+                                return wrapped_completion(*args, **new_kwargs)
+                            except Exception as fe:
+                                logger.error(f"Fallback attempt failed: {fe}")
+                                raise
+                        else:
+                            logger.error(f"Empty response from {model} and NO fallbacks provided in kwargs.")
+                            raise ValueError(f"Empty response from {model}")
+                return response
+
+            litellm.completion = wrapped_completion
+            litellm.drop_params = True
+            logger.debug("Applied litellm monkeypatch for empty response fallbacks")
+    except ImportError:
+        pass
+
 ProviderType = Literal["openai", "openrouter", "anthropic", "gemini", "azure", "ollama", "auto"]
 
 
@@ -72,6 +146,7 @@ class LiteLLM(LLM):
         provider: ProviderType = "auto",
         api_key: str | None = None,
         base_url: str | None = None,
+        fallbacks: list[str] | None = None,
         **kwargs,
     ):
         """Initialize LiteLLM.
@@ -90,6 +165,34 @@ class LiteLLM(LLM):
         self.provider = provider
         self.api_key = api_key
         self.base_url = base_url
+        
+        # Handle structured fallbacks
+        raw_fallbacks = fallbacks or config.get("llm.fallbacks", [])
+        self.fallbacks = []
+        self.fallback_configs = []
+        
+        import litellm
+        
+        for fb in raw_fallbacks:
+            if isinstance(fb, dict):
+                fb_model = fb.get("model")
+                self.fallbacks.append(fb_model)
+                self.fallback_configs.append(fb)
+                
+                # Pre-populate litellm's api_key_map if key is provided
+                fb_key = fb.get("api_key")
+                if not fb_key and "api_key_env" in fb:
+                    fb_key = os.environ.get(fb.get("api_key_env"))
+                
+                if fb_key and fb_model:
+                    # LiteLLM uses model as key in api_key_map
+                    if not hasattr(litellm, "api_key_map"):
+                        litellm.api_key_map = {}
+                    litellm.api_key_map[fb_model] = fb_key
+            else:
+                self.fallbacks.append(fb)
+                self.fallback_configs.append({"model": fb})
+
         self.extra_params = kwargs
 
         # Set API key from config/env
@@ -105,29 +208,57 @@ class LiteLLM(LLM):
 
         # Provider-specific API keys
         if not self.api_key:
-            # Check config
-            api_key = llm_config.get("api_key")
-            if api_key:
-                self.api_key = api_key
-            else:
-                # Check environment
-                env_key = llm_config.get("api_key_env", "OPENROUTER_API_KEY")
-                self.api_key = os.environ.get(env_key)
+            # First, check for provider-specific environment variables if applicable
+            provider_keys = {
+                "gemini/": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+                "anthropic/": ["ANTHROPIC_API_KEY"],
+                "openai/": ["OPENAI_API_KEY"],
+                "azure/": ["AZURE_API_KEY"],
+                "openrouter/": ["OPENROUTER_API_KEY"],
+                "ollama/": ["OLLAMA_API_KEY"],
+            }
+            
+            for prefix, env_keys in provider_keys.items():
+                if self.model.startswith(prefix):
+                    for env_key in env_keys:
+                        val = os.environ.get(env_key)
+                        if val:
+                            self.api_key = val
+                            logger.debug(f"Using provider-specific key {env_key} for {self.model}")
+                            break
+                    if self.api_key:
+                        break
 
-        # Base URL for proxies
+            # If still no key, fallback to config/default
+            if not self.api_key:
+                api_key = llm_config.get("api_key")
+                if api_key:
+                    self.api_key = api_key
+                else:
+                    # Check environment from config or default
+                    env_key = llm_config.get("api_key_env", "OPENROUTER_API_KEY")
+                    self.api_key = os.environ.get(env_key)
+
+        # Base URL for proxies - only apply if not already set
+        # and if the current model is the primary model OR doesn't look like a known cloud model
         if not self.base_url:
-            self.base_url = llm_config.get("base_url")
+            config_base_url = llm_config.get("base_url")
+            primary_model = llm_config.get("model")
+            
+            # Simple heuristic: if it's the primary model, use base_url
+            # if it starts with gemini/, anthropic/, or azure/, it's likely cloud, so skip global base_url
+            is_cloud = any(self.model.startswith(prefix) for prefix in ["gemini/", "anthropic/", "azure/", "openrouter/"])
+            
+            if config_base_url and (self.model == primary_model or not is_cloud):
+                self.base_url = config_base_url
+                logger.debug(f"Applying config base_url {self.base_url} to model {self.model}")
 
     def _get_client(self) -> Any:
         """Get LiteLLM completion function."""
         if self._client is None:
-            try:
-                import litellm
-
-                litellm.drop_params = True
-                self._client = litellm
-            except ImportError:
-                raise ImportError("litellm required. Install with: pip install litellm")
+            import litellm
+            setup_litellm()
+            self._client = litellm
         return self._client
 
     def complete(self, messages: list[dict], **kwargs) -> str:
@@ -145,6 +276,7 @@ class LiteLLM(LLM):
         params = {
             "model": self.model,
             "messages": messages,
+            "fallbacks": self.fallbacks,
             **self.extra_params,
             **kwargs,
         }
@@ -156,7 +288,16 @@ class LiteLLM(LLM):
 
         try:
             response = client.completion(**params)
-            return response.choices[0].message.content
+            content = response.choices[0].message.content
+            
+            # Handle empty or whitespace-only responses as failures to trigger fallbacks
+            if not content or not content.strip():
+                logger.warning(f"LLM returned empty response for model {self.model}")
+                if self.fallbacks:
+                    raise ValueError(f"Empty response from {self.model}, triggering fallback")
+                return ""
+                
+            return content
         except Exception as e:
             logger.error(f"LLM completion failed: {e}")
             raise
@@ -182,6 +323,7 @@ class LiteLLM(LLM):
                 "type": "json_object",
                 "schema": response_schema,
             },
+            "fallbacks": self.fallbacks,
             **self.extra_params,
         }
 
@@ -234,6 +376,7 @@ class LiteLLM(LLM):
 def create_llm(
     model: str | None = None,
     provider: ProviderType = "auto",
+    fallbacks: list[str] | None = None,
     **kwargs,
 ) -> LLM:
     """Create LLM based on configuration.
@@ -264,4 +407,7 @@ def create_llm(
         elif "ollama" in model:
             provider = "ollama"
 
-    return LiteLLM(model=model, provider=provider, **kwargs)
+    if fallbacks is None:
+        fallbacks = config.get("llm.fallbacks", [])
+
+    return LiteLLM(model=model, provider=provider, fallbacks=fallbacks, **kwargs)

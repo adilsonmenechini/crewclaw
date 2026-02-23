@@ -42,14 +42,23 @@ class Database:
 
         # Enable vec extension
         try:
-            self._conn.execute("SELECT load_extension('vec0')")
-            logger.info("Loaded vec0 extension")
-        except sqlite3.OperationalError:
+            import sqlite_vec
+
+            self._conn.enable_load_extension(True)
+            sqlite_vec.load(self._conn)
+            logger.info("Loaded vec extension via sqlite_vec module")
+        except ImportError:
+            # Fallback to manual loading if module not installed
             try:
-                self._conn.execute("SELECT load_extension('vec')")
-                logger.info("Loaded vec extension")
-            except sqlite3.OperationalError as e:
-                logger.warning(f"Could not load vec extension: {e}")
+                self._conn.enable_load_extension(True)
+                self._conn.execute("SELECT load_extension('vec0')")
+                logger.info("Loaded vec0 extension")
+            except sqlite3.OperationalError:
+                try:
+                    self._conn.execute("SELECT load_extension('vec')")
+                    logger.info("Loaded vec extension")
+                except sqlite3.OperationalError as e:
+                    logger.warning(f"Could not load vec extension: {e}")
 
         # Initialize schema
         self._init_schema()

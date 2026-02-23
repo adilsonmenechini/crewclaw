@@ -5,7 +5,7 @@ description = "Local-first autonomous agent system with CrewAI and SQLite-vec"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "crewai>=0.80.0",
+    "crewai[anthropic,gemini,openai]>=0.80.0",
     "crewai-tools>=0.14.0",
     "sqlite-vec>=0.1.0",
     "sentence-transformers>=3.0.0",

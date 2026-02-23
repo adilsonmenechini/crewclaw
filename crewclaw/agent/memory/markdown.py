@@ -33,14 +33,14 @@ class MemoryFile:
                 self._read()
             else:
                 self._content = ""
-        return self._content
+        return self._content  # type: ignore[return-value]
 
     @property
     def frontmatter(self) -> dict:
         """Get YAML frontmatter."""
         if self._frontmatter is None:
             self._parse_frontmatter()
-        return self._frontmatter
+        return self._frontmatter  # type: ignore[return-value]
 
     def _read(self) -> None:
         """Read file and parse frontmatter."""
@@ -178,17 +178,14 @@ class MemoryOrganizer:
         """
         date = date or datetime.now()
 
-        parts = [self.base_dir]
+        path = self.base_dir
 
         if category:
-            parts.append(category)
+            path = path / category
 
         # Date-based organization
-        parts.append(f"{date.year}")
-        parts.append(f"{date.month:02d}")
-        parts.append(f"{date.day:02d}")
+        path = path / str(date.year) / f"{date.month:02d}" / f"{date.day:02d}"
 
-        path = Path(*parts)
         path.mkdir(parents=True, exist_ok=True)
 
         return path

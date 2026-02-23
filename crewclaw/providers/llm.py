@@ -9,6 +9,8 @@ from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+ProviderType = Literal["openai", "openrouter", "anthropic", "gemini", "azure", "ollama", "auto"]
+
 
 class LLM(ABC):
     """Abstract base class for LLM providers."""
@@ -67,9 +69,7 @@ class LiteLLM(LLM):
     def __init__(
         self,
         model: str | None = None,
-        provider: Literal[
-            "openai", "openrouter", "anthropic", "gemini", "azure", "ollama", "auto"
-        ] = "auto",
+        provider: ProviderType = "auto",
         api_key: str | None = None,
         base_url: str | None = None,
         **kwargs,
@@ -233,7 +233,7 @@ class LiteLLM(LLM):
 
 def create_llm(
     model: str | None = None,
-    provider: str = "auto",
+    provider: ProviderType = "auto",
     **kwargs,
 ) -> LLM:
     """Create LLM based on configuration.

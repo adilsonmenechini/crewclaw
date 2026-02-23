@@ -75,13 +75,6 @@ class WebSearchTool(BaseTool):
         return asyncio.run(run_search())
 
 
-class WebSearchArgs(BaseModel):
-    """Arguments for web search."""
-
-    query: str
-    count: int = 5
-
-
 class WebFetchTool(BaseTool):
     """CrewAI wrapper for web fetch using Readability."""
 
@@ -99,14 +92,6 @@ class WebFetchTool(BaseTool):
             return await tool.execute(url=url, extract_mode=extract_mode)
 
         return asyncio.run(run_fetch())
-
-
-class WebFetchArgs(BaseModel):
-    """Arguments for web fetch."""
-
-    url: str
-    extract_mode: str = "markdown"
-    max_chars: int = 50000
 
 
 class FileReadToolCrewAI(BaseTool):
@@ -128,14 +113,6 @@ class FileReadToolCrewAI(BaseTool):
         return asyncio.run(run_read())
 
 
-class FileReadArgs(BaseModel):
-    """Arguments for file read."""
-
-    path: str
-    offset: int = 1
-    limit: int | None = None
-
-
 class FileWriteToolCrewAI(BaseTool):
     """CrewAI wrapper for file write."""
 
@@ -153,14 +130,6 @@ class FileWriteToolCrewAI(BaseTool):
             return await tool.execute(path=path, content=content, append=append)
 
         return asyncio.run(run_write())
-
-
-class FileWriteArgs(BaseModel):
-    """Arguments for file write."""
-
-    path: str
-    content: str
-    append: bool = False
 
 
 class GrepToolCrewAI(BaseTool):
@@ -193,16 +162,6 @@ class GrepToolCrewAI(BaseTool):
             )
 
         return asyncio.run(run_grep())
-
-
-class GrepArgs(BaseModel):
-    """Arguments for grep."""
-
-    pattern: str
-    path: str = "."
-    case_sensitive: bool = True
-    whole_word: bool = False
-    max_results: int = 100
 
 
 class DirectoryListToolCrewAI(BaseTool):
@@ -264,7 +223,9 @@ class ExecToolCrewAI(BaseTool):
     """CrewAI wrapper for shell command execution."""
 
     name: str = "exec"
-    description: str = "Execute a shell command and return its output. Use for running kubectl, git, python, etc."
+    description: str = (
+        "Execute a shell command and return its output. Use for running kubectl, git, python, etc."
+    )
     args_schema: Type[BaseModel] = ExecArgs
 
     def _run(self, command: str, working_dir: str | None = None) -> str:

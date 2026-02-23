@@ -58,13 +58,12 @@ class MemorySearchTool(Tool):
 
         try:
             # Import memory components
-            from crewclaw.agent.memory.search import MemorySearch
+            from crewclaw.agent.memory.search import HybridSearch
 
-            search = MemorySearch(data_dir=self.data_dir)
+            search = HybridSearch()
 
-            results = search.hybrid_search(
+            results = search.search(
                 query=query,
-                collection=collection,
                 limit=limit,
             )
 
@@ -84,10 +83,12 @@ class MemorySearchTool(Tool):
                     "collection": collection,
                     "results": [
                         {
-                            "id": r.get("id"),
-                            "content": r.get("content", "")[:500],  # Truncate long content
-                            "score": r.get("score"),
-                            "source": r.get("metadata", {}).get("source", "unknown"),
+                            "id": r.id,
+                            "content": r.content[:500],  # Truncate long content
+                            "score": r.score,
+                            "source": r.metadata.get("source", "unknown")
+                            if r.metadata
+                            else "unknown",
                         }
                         for r in results
                     ],

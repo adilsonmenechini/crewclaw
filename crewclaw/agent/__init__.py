@@ -9,8 +9,6 @@ from .samples import (
     create_researcher_agent,
     create_writer_agent,
     get_sample_agent,
-    find_best_template,
-    get_template,
     SAMPLE_AGENTS,
 )
 
@@ -24,7 +22,5 @@ __all__ = [
     "create_researcher_agent",
     "create_writer_agent",
     "get_sample_agent",
-    "find_best_template",
-    "get_template",
     "SAMPLE_AGENTS",
 ]

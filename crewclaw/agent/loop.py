@@ -2,7 +2,7 @@
 
 from typing import Callable
 
-from crewai import Agent
+from crewai import Agent, Task
 
 from crewclaw.config import get_config
 from crewclaw.config.logging import get_logger
@@ -56,7 +56,9 @@ class ReActRuntime:
 
             # Execute step
             try:
-                result = self.agent.execute_task(task)
+                result = self.agent.execute_task(
+                    Task(description=task, expected_output="Result of the task")
+                )
 
                 # Check for completion
                 if self._is_complete(result):
@@ -120,8 +122,8 @@ class ReActRuntime:
         if last_action and last_action in action_count:
             action_count[last_action] += 1
             return action_count[last_action] >= self.watchdog_threshold
-
-        action_count[last_action] = 1
+        elif last_action:
+            action_count[last_action] = 1
         return False
 
     def _modify_task(self, task: str, error: str) -> str:

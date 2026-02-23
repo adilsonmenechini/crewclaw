@@ -5,7 +5,9 @@ Welcome to the CrewClaw documentation. This index helps you navigate the system'
 ## 1. Core Concepts
 Understanding the foundation of CrewClaw.
 - [Interactive Onboarding (uv run crewclaw init)](core/onboarding-setup.md)
+- [Cleaning Environment (uv run crewclaw clean)](#)
 - [Skills, Agents, and Tasks: The Triad](core/triad-orchestration.md)
+- [Self-Evolution: Expanding Capabilities](core/self-evolution.md)
 
 ## 2. Advanced Features
 Deep dive into the proactive and evolvable capabilities.

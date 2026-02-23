@@ -41,5 +41,7 @@ __all__ = [
     "MemorySearchTool",
     # Dynamic tools
     "DynamicSkill",
+    "parse_skill_markdown",
     "SkillsLoader",
+    "MCPLoader",
 ]

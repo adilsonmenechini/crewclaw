@@ -6,9 +6,10 @@ from typing import Callable
 
 logger = logging.getLogger(__name__)
 
+
 class BaseChannel(ABC):
     """Abstract base class for messaging channels."""
-    
+
     @abstractmethod
     async def send_message(self, text: str, user_id: str):
         pass
@@ -17,9 +18,10 @@ class BaseChannel(ABC):
     async def listen(self, _callback: Callable):
         pass
 
+
 class TelegramChannel(BaseChannel):
     """Telegram implementation using python-telegram-bot (placeholder logic)."""
-    
+
     def __init__(self, token: str):
         self.token = token
 
@@ -31,9 +33,10 @@ class TelegramChannel(BaseChannel):
         logger.info("Telegram listener started (Placeholder)")
         # Implementation would start bot long-polling/webhook
 
+
 class ChannelBridge:
     """Manages multiple communication channels."""
-    
+
     def __init__(self, agent_loop):
         self.agent_loop = agent_loop
         self.channels: dict[str, BaseChannel] = {}

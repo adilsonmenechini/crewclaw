@@ -4,8 +4,6 @@ import json
 import sys
 from pathlib import Path
 
-import yaml
-
 import click
 from rich.console import Console
 from rich.table import Table
@@ -13,6 +11,7 @@ from rich.table import Table
 from crewclaw.agent.memory import HybridSearch, get_database
 from crewclaw.config import get_config
 from crewclaw.config.logging import setup_logging
+from crewclaw.providers.embedder import create_embedder
 
 console = Console()
 
@@ -205,7 +204,7 @@ def run(ctx: click.Context, task: str, agent: str, session: str | None, verbose:
             session_mgr = get_current_session()
 
         # Load context from previous conversations
-        context_messages = session_mgr.load_context()
+        context_messages = session_mgr.load_context(query=task)
 
         # Build context string for system prompt
         context_str = ""
@@ -216,7 +215,9 @@ def run(ctx: click.Context, task: str, agent: str, session: str | None, verbose:
             context_str = f"\n\nIMPORTANT CONTEXT FROM PREVIOUS CONVERSATIONS:\n{context_str}\n\nUse this context to provide more personalized responses."
 
         # Get verbose flag from parent context
-        verbose = ctx.parent.params.get("verbose", False)
+        verbose = False
+        if ctx.parent:
+            verbose = ctx.parent.params.get("verbose", False)
 
         if agent == "router":
             from crewclaw.agent.samples import get_sample_agent
@@ -336,6 +337,19 @@ def init(path: str, non_interactive: bool) -> None:
     )
     model = click.prompt("Select Model", default="google/gemini-2.0-flash-lite")
     api_key = click.prompt("Enter API Key", hide_input=True)
+    base_url = click.prompt("Enter Base URL (Optional, for custom/local LLMs)", default="")
+    if base_url and not base_url.startswith(("http://", "https://")):
+        if base_url.startswith("http:/") or base_url.startswith("https:/"):
+            # Fix common typo
+            base_url = base_url.replace("http:/", "http://").replace("https:/", "https://")
+            console.print(f"[yellow]Note:[/yellow] Corrected base_url to {base_url}")
+        else:
+            console.print(
+                "[yellow]Warning:[/yellow] Base URL should normally start with http:// or https://"
+            )
+
+    temperature = click.prompt("Temperature", type=float, default=0.7)
+    max_tokens = click.prompt("Max Tokens", type=int, default=4096)
 
     # 3. Fallback (Optional)
     use_fallback = click.confirm("Do you want to configure a fallback provider?", default=False)
@@ -355,7 +369,17 @@ def init(path: str, non_interactive: bool) -> None:
     # 5. Generate Files
     _perform_basic_init(path)
     _save_config(
-        path, user_name, ai_name, objective, provider, model, fallback_config, use_telegram
+        path,
+        user_name,
+        ai_name,
+        objective,
+        provider,
+        model,
+        base_url,
+        temperature,
+        max_tokens,
+        fallback_config,
+        use_telegram,
     )
     _save_env(provider, api_key, telegram_token)
     _create_workspace_templates(ai_name, objective)
@@ -368,10 +392,45 @@ def init(path: str, non_interactive: bool) -> None:
     console.print("2. Explore [bold]docs/000-index.md[/bold] for more details.")
 
 
+@cli.command()
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+def clean(yes: bool) -> None:
+    """Remove workspace, configuration, environment and logs."""
+    import shutil
+
+    files_to_remove = ["crewclaw.json", ".env"]
+    dirs_to_remove = ["workspace", "logs"]
+
+    if not yes:
+        console.print(
+            "[yellow]WARNING:[/yellow] This will delete your workspace, settings and environment files."
+        )
+        if not click.confirm("Are you sure you want to proceed?", default=False):
+            console.print("[blue]Clean cancelled.[/blue]")
+            return
+
+    for f in files_to_remove:
+        path = Path(f)
+        if path.exists():
+            path.unlink()
+            console.print(f"[green]Removed file:[/green] {f}")
+
+    for d in dirs_to_remove:
+        path = Path(d)
+        if path.exists():
+            shutil.rmtree(path)
+            console.print(f"[green]Removed directory:[/green] {d}")
+
+    console.print("\n[bold green]Environment cleaned successfully![/bold green] ✨")
+
+
 def _perform_basic_init(path: str) -> None:
     """Create basic memory structure."""
     mem_dir = Path(path)
     mem_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create logs directory
+    Path("./logs").mkdir(parents=True, exist_ok=True)
 
     welcome = mem_dir / "welcome.md"
     if not welcome.exists():
@@ -391,7 +450,17 @@ and available for semantic search.
 
 
 def _save_config(
-    path, user_name, ai_name, objective, provider, model, fallback, use_telegram
+    path,
+    user_name,
+    ai_name,
+    objective,
+    provider,
+    model,
+    base_url,
+    temperature,
+    max_tokens,
+    fallback,
+    use_telegram,
 ) -> None:
     """Save configuration to crewclaw.json."""
     config_file = Path("crewclaw.json")
@@ -409,6 +478,10 @@ def _save_config(
 
     cfg["llm"]["provider"] = provider
     cfg["llm"]["model"] = model
+    cfg["llm"]["temperature"] = temperature
+    cfg["llm"]["max_tokens"] = max_tokens
+    if base_url:
+        cfg["llm"]["base_url"] = base_url
 
     # Detect correct env var
     env_vars = {
@@ -423,6 +496,11 @@ def _save_config(
         cfg["llm"]["fallback"] = fallback
 
     cfg["telegram"]["enabled"] = use_telegram
+
+    # Logging
+    if "logging" not in cfg:
+        cfg["logging"] = {}
+    cfg["logging"]["file"] = "./logs/crewclaw.log"
 
     with open(config_file, "w") as f:
         json.dump(cfg, f, indent=2)
@@ -468,10 +546,6 @@ def _save_env(provider, api_key, telegram_token) -> None:
 
 def _create_workspace_templates(ai_name, objective) -> None:
     """Create initial workspace files using templates."""
-    from crewclaw.agent.samples import find_best_template
-
-    # Find best template based on user objective
-    template = find_best_template(objective)
     base_dir = Path(__file__).parent.parent / "base"
 
     def _render(content, mapping):
@@ -479,77 +553,89 @@ def _create_workspace_templates(ai_name, objective) -> None:
             content = content.replace(f"{{{{{key}}}}}", str(value))
         return content
 
+    # Default mapping for assistant if no other template is chosen
+    # In a future version, we could let the user choose a specialist during init
+    default_role = "General Purpose AI Assistant"
+    default_backstory = "You are a versatile and helpful AI assistant designed to follow instructions and provide high-quality results."
+    default_tools = ["web_search", "web_fetch", "file_read", "file_write", "ls"]
+
     # 1. Soul
     soul_path = Path("./workspace/memory/soul.md")
     soul_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     soul_tpl_path = base_dir / "memory" / "soul.md.template"
     if soul_tpl_path.exists():
-        soul_content = _render(soul_tpl_path.read_text(), {
-            "ai_name": ai_name,
-            "objective": objective,
-            "voice": template.get("voice", "Helpful, analytical, and precise."),
-            "role": template['role']
-        })
-        
+        soul_content = _render(
+            soul_tpl_path.read_text(),
+            {
+                "ai_name": ai_name,
+                "objective": objective,
+                "voice": "Helpful, analytical, and precise.",
+                "role": default_role,
+            },
+        )
+
         if not soul_path.exists():
             soul_path.write_text(soul_content)
-        else:
-            existing = soul_path.read_text()
-            if f"# Soul of {ai_name}" not in existing:
-                 soul_path.write_text(soul_content + "\n\n" + "## Previous Content\n" + existing)
 
-    # 2. Agent
+    # 2. Assistant Agent
     agents_dir = Path("./workspace/agents")
     agents_dir.mkdir(parents=True, exist_ok=True)
     assistant_yaml = agents_dir / "assistant.yaml"
-    
+
     agent_tpl_path = base_dir / "agents" / "assistant.yaml.template"
     if agent_tpl_path.exists():
         mapping = {
             "ai_name": ai_name,
-            "role": template['role'],
+            "role": default_role,
             "objective": objective,
-            "backstory": template['backstory'],
-            "tools": json.dumps(template['tools'])
+            "backstory": default_backstory,
+            "tools": json.dumps(default_tools),
         }
         agent_content = _render(agent_tpl_path.read_text(), mapping)
-        
-        # Simple conditional handling for delegation since we don't use full Jinja2 here
-        if template.get("allow_delegation"):
-            agent_content = agent_content.replace("{% if allow_delegation %}\n  allow_delegation: true\n{% endif %}", "  allow_delegation: true")
-        else:
-            import re
-            agent_content = re.sub(r"{% if allow_delegation %}.*?{% endif %}", "", agent_content, flags=re.DOTALL)
+
+        # Clean up any leftover Jinja2-like tags if template logic changed
+        import re
+
+        agent_content = re.sub(r"{%.*?%}", "", agent_content, flags=re.DOTALL)
 
         with open(assistant_yaml, "w") as f:
             f.write(agent_content)
 
-    # 3. Task
+    # 3. Tasks
     tasks_dir = Path("./workspace/tasks")
     tasks_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy getting_started task
     start_task = tasks_dir / "getting_started.yaml"
-    
     task_tpl_path = base_dir / "tasks" / "getting_started.yaml.template"
     if task_tpl_path.exists() and not start_task.exists():
-        task_content = _render(task_tpl_path.read_text(), {
-            "ai_name": ai_name,
-            "objective": objective
-        })
+        task_content = _render(
+            task_tpl_path.read_text(), {"ai_name": ai_name, "objective": objective}
+        )
         start_task.write_text(task_content)
 
-    # 4. Hello Skill
+    # 4. Skills
     skills_dir = Path("./workspace/skills")
     skills_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy Hello Skill
     hello_skill = skills_dir / "hello.md"
-    
     skill_tpl_path = base_dir / "skills" / "hello.md.template"
     if skill_tpl_path.exists() and not hello_skill.exists():
-        skill_content = _render(skill_tpl_path.read_text(), {
-            "ai_name": ai_name,
-            "objective": objective
-        })
+        skill_content = _render(
+            skill_tpl_path.read_text(), {"ai_name": ai_name, "objective": objective}
+        )
         hello_skill.write_text(skill_content)
+
+    # Copy Evolution Skill (The new core capability!)
+    evo_skill = skills_dir / "evolution_skill.md"
+    evo_tpl_path = base_dir / "skills" / "evolution_skill.md.template"
+    if evo_tpl_path.exists() and not evo_skill.exists():
+        evo_content = _render(
+            evo_tpl_path.read_text(), {"ai_name": ai_name, "objective": objective}
+        )
+        evo_skill.write_text(evo_content)
 
 
 @cli.command()
@@ -559,7 +645,8 @@ def index(path: str) -> None:
     from pathlib import Path
 
     try:
-        from crewclaw.agent.memory import get_database, create_embedder, Chunker, VectorStore
+        from crewclaw.agent.memory import get_database, Chunker, VectorStore
+        from crewclaw.providers.embedder import create_embedder
     except ImportError as e:
         console.print(f"[red]Erro ao importar módulos: {e}[/red]")
         console.print("[yellow]Execute: pip install -e .[/yellow]")
@@ -616,7 +703,7 @@ def watch(path: str, recursive: bool) -> None:
         crewclaw watch --path ./workspace/memory
     """
     from crewclaw.agent.watcher import FileWatcher
-    from crewclaw.agent.memory import Chunker, VectorStore, create_embedder
+    from crewclaw.agent.memory import Chunker, VectorStore
 
     console.print(f"[cyan]Iniciando watcher em: {path}[/cyan]")
     console.print("[yellow]Press Ctrl+C para parar[/yellow]")

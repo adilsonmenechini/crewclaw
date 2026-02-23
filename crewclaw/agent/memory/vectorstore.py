@@ -78,13 +78,17 @@ class VectorStore:
             return existing["id"]
 
         # Insert vector
+        import struct
+
+        embedding_blob = struct.pack(f"{len(embedding)}f", *embedding)
+
         cursor = conn.execute(
             """INSERT INTO vectors 
                (content, embedding, metadata, file_path, chunk_index, content_hash)
                VALUES (?, ?, ?, ?, ?, ?)""",
             (
                 content,
-                json.dumps(embedding),
+                embedding_blob,
                 json.dumps(metadata) if metadata else None,
                 file_path,
                 chunk_index,
@@ -94,7 +98,7 @@ class VectorStore:
         conn.commit()
 
         logger.debug(f"Inserted vector with id {cursor.lastrowid}")
-        return cursor.lastrowid
+        return cursor.lastrowid or 0
 
     def search(
         self,
@@ -114,19 +118,23 @@ class VectorStore:
         """
         conn = self.db.connection
 
-        # Build query
-        if file_path:
-            where_clause = "WHERE file_path = ?"
-            params = (file_path, query_embedding, limit)
-        else:
-            where_clause = ""
-            params = (query_embedding, limit)
-
         try:
-            # Try vec similarity search
+            # Try vec similarity search using vec_distance_l2 if extension is loaded
+            # Note: query_embedding must be converted to blob if using sqlite-vec
+            import struct
+
+            query_blob = struct.pack(f"{len(query_embedding)}f", *query_embedding)
+
+            if file_path:
+                where_clause = "WHERE file_path = ?"
+                params = (query_blob, file_path, limit)
+            else:
+                where_clause = ""
+                params = (query_blob, limit)
+
             cursor = conn.execute(
                 f"""SELECT id, content, file_path, metadata, chunk_index,
-                           distance
+                           vec_distance_l2(embedding, ?) as distance
                     FROM vectors
                     {where_clause}
                     ORDER BY distance
@@ -154,8 +162,8 @@ class VectorStore:
 
             return results
 
-        except Exception as e:
-            logger.warning(f"Vector search failed: {e}, falling back to brute force")
+        except Exception:
+            # Fall back to brute force search if extension fails or column/function missing
             return self._brute_force_search(query_embedding, limit, file_path)
 
     def _brute_force_search(
@@ -177,7 +185,19 @@ class VectorStore:
 
         results = []
         for row in rows:
-            emb = json.loads(row["embedding"])
+            import struct
+
+            try:
+                # Try to unpack blob if it's binary
+                emb_blob = row["embedding"]
+                dim = len(emb_blob) // 4
+                emb = list(struct.unpack(f"{dim}f", emb_blob))
+            except Exception:
+                # Fallback if it's still JSON string (old data)
+                try:
+                    emb = json.loads(row["embedding"])
+                except Exception:
+                    continue
             # Cosine similarity
             dot = sum(a * b for a, b in zip(query_embedding, emb))
             norm1 = sum(a * a for a in query_embedding) ** 0.5

@@ -4,15 +4,15 @@ import os
 import glob
 import json
 import logging
-import subprocess
 from typing import List, Dict, Any
 from crewclaw.config import get_config
 
 logger = logging.getLogger(__name__)
 
+
 class MCPLoader:
     """Loads and manages MCP server connections defined in a directory."""
-    
+
     def __init__(self, mcp_dir: str | None = None):
         config = get_config()
         self.mcp_dir = mcp_dir or config.get("project.mcp_dir", "./workspace/mcp")
@@ -27,14 +27,14 @@ class MCPLoader:
 
         for json_file in glob.glob(os.path.join(self.mcp_dir, "*.json")):
             self._load_server(json_file)
-            
+
         return self.servers
 
     def _load_server(self, file_path: str):
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, "r") as f:
                 config = json.load(f)
-            
+
             server_name = os.path.splitext(os.path.basename(file_path))[0]
             if "command" in config:
                 self.servers[server_name] = config

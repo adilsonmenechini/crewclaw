@@ -65,6 +65,14 @@ CrewClaw features an assistant that configures everything for you, from the LLM 
 crewclaw init
 ```
 
+### 🧹 Reset Environment
+
+To delete the workspace, configurations and logs (reset everything):
+
+```bash
+crewclaw clean
+```
+
 This command will:
 1. Configure the LLM **provider and model**.
 2. Define the **identity** (Soul) and central goal of your agent.

@@ -2,14 +2,11 @@
 
 import time
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from watchdog.observers import Observer
 from watchdog.events import (
     FileSystemEventHandler,
-    FileCreatedEvent,
-    FileModifiedEvent,
-    FileDeletedEvent,
 )
 
 from crewclaw.config import get_config
@@ -36,9 +33,10 @@ class MemoryEventHandler(FileSystemEventHandler):
             on_deleted: Callback for file deletion.
             debounce_seconds: Seconds to wait before processing.
         """
-        self.on_created = on_created
-        self.on_modified = on_modified
-        self.on_deleted = on_deleted
+        super().__init__()
+        self._on_created_cb = on_created
+        self._on_modified_cb = on_modified
+        self._on_deleted_cb = on_deleted
         self.debounce_seconds = debounce_seconds
 
         self._last_event: dict[str, float] = {}
@@ -55,41 +53,44 @@ class MemoryEventHandler(FileSystemEventHandler):
         self._last_event[path] = now
         return True
 
-    def on_created(self, event: FileCreatedEvent) -> None:
+    def on_created(self, event):
         """Handle file creation."""
         if event.is_directory:
             return
 
-        if not self._should_process(event.src_path):
+        path = str(event.src_path)
+        if not self._should_process(path):
             return
 
-        logger.info(f"File created: {event.src_path}")
+        logger.info(f"File created: {path}")
 
-        if self.on_created:
-            self.on_created(event.src_path)
+        if self._on_created_cb:
+            self._on_created_cb(path)
 
-    def on_modified(self, event: FileModifiedEvent) -> None:
+    def on_modified(self, event):
         """Handle file modification."""
         if event.is_directory:
             return
 
-        if not self._should_process(event.src_path):
+        path = str(event.src_path)
+        if not self._should_process(path):
             return
 
-        logger.info(f"File modified: {event.src_path}")
+        logger.info(f"File modified: {path}")
 
-        if self.on_modified:
-            self.on_modified(event.src_path)
+        if self._on_modified_cb:
+            self._on_modified_cb(path)
 
-    def on_deleted(self, event: FileDeletedEvent) -> None:
+    def on_deleted(self, event):
         """Handle file deletion."""
         if event.is_directory:
             return
 
-        logger.info(f"File deleted: {event.src_path}")
+        path = str(event.src_path)
+        logger.info(f"File deleted: {path}")
 
-        if self.on_deleted:
-            self.on_deleted(event.src_path)
+        if self._on_deleted_cb:
+            self._on_deleted_cb(path)
 
 
 class FileWatcher:
@@ -122,7 +123,7 @@ class FileWatcher:
             debounce_seconds=debounce,
         )
 
-        self._observer: Observer | None = None
+        self._observer: Any = None
 
     def start(self) -> None:
         """Start watching."""
@@ -133,7 +134,7 @@ class FileWatcher:
 
         for path in self.watch_paths:
             watch_path = Path(path)
-            if watch_path.exists():
+            if watch_path.exists() and self._observer is not None:
                 self._observer.schedule(self.handler, str(watch_path), recursive=True)
                 logger.info(f"Watching: {watch_path}")
             else:

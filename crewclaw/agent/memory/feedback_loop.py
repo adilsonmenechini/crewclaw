@@ -10,6 +10,8 @@ This module implements the "Write Reflexive" process from the documentation:
 
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Callable
+
 
 from crewclaw.config import get_config
 from crewclaw.config.logging import get_logger
@@ -192,9 +194,9 @@ class ConsolidationHook:
     """
 
     def __init__(self):
-        self._hooks: list[callable] = []
+        self._hooks: list[Callable[..., Any]] = []
 
-    def register(self, callback: callable) -> None:
+    def register(self, callback: Callable[..., Any]) -> None:
         """Register a callback to run after task completion.
 
         Args:
@@ -203,7 +205,7 @@ class ConsolidationHook:
         self._hooks.append(callback)
         logger.debug(f"Registered consolidation hook: {callback.__name__}")
 
-    def unregister(self, callback: callable) -> None:
+    def unregister(self, callback: Callable[..., Any]) -> None:
         """Unregister a callback.
 
         Args:

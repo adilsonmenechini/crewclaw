@@ -22,17 +22,21 @@ def setup_logging(name: str | None = None, level_override: str | None = None) ->
     if logger.handlers:
         return logger
 
-    level = level_override or config.get("logging.level", "INFO")
     log_format = config.get(
         "logging.format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     log_file = config.get("logging.file")
 
-    logger.setLevel(getattr(logging, level.upper()))
+    config_level = config.get("logging.level", "INFO").upper()
+    console_level = (level_override or config_level).upper()
+    file_level = config_level
+
+    # Set main logger to DEBUG to allow all handlers to filter independently
+    logger.setLevel(logging.DEBUG)
 
     # Console handler
     console = logging.StreamHandler()
-    console.setLevel(getattr(logging, level.upper()))
+    console.setLevel(getattr(logging, console_level))
     console.setFormatter(logging.Formatter(log_format))
     logger.addHandler(console)
 
@@ -46,7 +50,7 @@ def setup_logging(name: str | None = None, level_override: str | None = None) ->
             maxBytes=10 * 1024 * 1024,  # 10MB
             backupCount=5,
         )
-        file_handler.setLevel(getattr(logging, level.upper()))
+        file_handler.setLevel(getattr(logging, file_level))
         file_handler.setFormatter(logging.Formatter(log_format))
         logger.addHandler(file_handler)
 

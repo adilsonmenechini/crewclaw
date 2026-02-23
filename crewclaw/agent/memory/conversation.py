@@ -102,7 +102,7 @@ class ConversationMemory:
         return self._conn
 
     def add_message(self, session_id: str, role: str, content: str) -> bool:
-        """Add a message to conversation history with deduplication.
+        """Add a message to conversation history with deduplication and compaction.
 
         Args:
             session_id: Session identifier.
@@ -131,9 +131,82 @@ class ConversationMemory:
         )
         conn.commit()
 
+        # Optimization: Compact context if it's getting too long
+        self._compact_if_needed(session_id)
+
         self._update_vector_for_session(session_id)
 
         return True
+
+    def _compact_if_needed(self, session_id: str) -> None:
+        """Check and compact session if it exceeds token threshold."""
+        config = get_config()
+        threshold = config.get("memory.compaction_threshold_tokens", 4000)
+
+        messages = self.get_all_messages(session_id)
+        if not messages:
+            return
+
+        # Simple token estimation: ~4 chars per token on average for English
+        total_chars = sum(len(m["content"]) for m in messages)
+        estimated_tokens = total_chars / 4
+
+        if estimated_tokens > threshold:
+            logger.info(f"Session {session_id} exceeds threshold ({estimated_tokens:.0f} tokens), compacting...")
+            self._compact_session(session_id, messages)
+
+    def _compact_session(self, session_id: str, messages: list[dict]) -> None:
+        """Compact session by summarizing the first half of messages."""
+        # Keep the last 4 messages as raw context
+        keep_count = 4
+        if len(messages) <= keep_count + 2:
+            return
+
+        to_summarize = messages[:-keep_count]
+        text_to_summarize = "\n".join([f"{m['role']}: {m['content']}" for m in to_summarize])
+
+        try:
+            # We use the feedback loop's summarization logic if available, or a simple prompt
+            from crewclaw.providers.crewai import create_crewai_llm
+
+            llm = create_crewai_llm()
+            prompt = (
+                f"Summarize the following part of a conversation to preserve its context "
+                f"in a very concise way (under 200 words):\n\n{text_to_summarize}"
+            )
+
+            # Handle both crewai.LLM and other potential wrappers
+            if hasattr(llm, "call"):
+                summary = llm.call([{"role": "user", "content": prompt}])
+            else:
+                # Basic fallback if call() is not there
+                return
+
+            # Delete old messages
+            conn = self.connection
+            # Get IDs of messages to delete (all but the last keep_count)
+            rows = conn.execute(
+                "SELECT id FROM conversations WHERE session_id = ? ORDER BY created_at ASC LIMIT ?",
+                (session_id, len(to_summarize)),
+            ).fetchall()
+            ids_to_delete = [row["id"] for row in rows]
+
+            if ids_to_delete:
+                placeholders = ",".join(["?"] * len(ids_to_delete))
+                conn.execute(
+                    f"DELETE FROM conversations WHERE id IN ({placeholders})", tuple(ids_to_delete)
+                )
+
+                # Add summary as a system message at the beginning
+                conn.execute(
+                    "INSERT INTO conversations (session_id, role, content) VALUES (?, ?, ?)",
+                    (session_id, "system", f"[Context Summary]: {summary}"),
+                )
+                conn.commit()
+                logger.info(f"Session {session_id} compacted successfully")
+
+        except Exception as e:
+            logger.warning(f"Context compaction failed: {e}")
 
     def _update_vector_for_session(self, session_id: str) -> None:
         """Update vector store for session messages and summary."""

@@ -93,11 +93,15 @@ class ReActRuntime:
         return "Task did not complete within iteration limit"
 
     def _is_complete(self, result: str) -> bool:
-        """Check if result indicates task completion."""
+        """Check if result indicates task completion with robust patterns."""
         if not result:
             return False
 
-        # Check for completion indicators
+        # Check for explicit completion tags (Standardized)
+        if "FINAL ANSWER:" in result.upper() or "TERMINATE" in result.upper():
+            return True
+
+        # Check for common completion indicators
         completion_indicators = [
             "completed",
             "finished",
@@ -107,7 +111,22 @@ class ReActRuntime:
         ]
 
         result_lower = result.lower()
-        return any(indicator in result_lower for indicator in completion_indicators)
+        # Only consider it complete if it's a VERY short response OR contains indicators
+        # This prevents mid-process "done" mentions from triggering completion
+        if any(indicator in result_lower for indicator in completion_indicators):
+            # If the result is very short, it's likely a final confirmation
+            if len(result_lower.split()) < 5:
+                return True
+            # Otherwise, look for the indicator at the very end or beginning
+            for indicator in completion_indicators:
+                stripped = result_lower.strip()
+                if stripped.startswith(indicator) or stripped.endswith(indicator):
+                    return True
+                # Also check if it's on its own line at the end
+                if f"\n{indicator}" in result_lower:
+                    return True
+
+        return False
 
     def _detect_loop(self, action_count: dict[str, int], last_action: str | None) -> bool:
         """Detect if agent is in a loop.
@@ -127,7 +146,7 @@ class ReActRuntime:
         return False
 
     def _modify_task(self, task: str, error: str) -> str:
-        """Modify task based on error for self-correction.
+        """Modify task based on error for self-correction with token optimization.
 
         Args:
             task: Original task.
@@ -136,4 +155,16 @@ class ReActRuntime:
         Returns:
             Modified task.
         """
-        return f"{task}\n\nNote: Previous attempt failed with error: {error}. Please try a different approach."
+        # Cap error length to save tokens
+        short_error = error[:200] + "..." if len(error) > 200 else error
+
+        # Check if error is already in task to prevent recursive bloat
+        if f"Error: {short_error}" in task:
+            return task
+
+        return (
+            f"{task}\n\n"
+            f"### Self-Correction Step\n"
+            f"Previous attempt encountered an error: {short_error}\n"
+            f"Please reflect on why this happened and try a different, more direct approach."
+        )

@@ -64,6 +64,7 @@ def test_self_correction_on_error(mock_agent):
 
     assert "finished" in result.lower()
     assert mock_agent.execute_task.call_count == 2
-    # Verify the task was modified with the error message
+    # Verify the task was modified with the error message and self-correction prompt
     called_task = mock_agent.execute_task.call_args[0][0]
-    assert "Previous attempt failed with error: Tool failed" in called_task.description
+    assert "### Self-Correction Step" in called_task.description
+    assert "Previous attempt encountered an error: Tool failed" in called_task.description

@@ -60,6 +60,11 @@ class DirectoryListTool(Tool):
                     "description": "Include hidden files (starting with .)",
                     "default": False,
                 },
+                "max_items": {
+                    "type": "integer",
+                    "description": "Maximum number of items to return before truncating (default: 100)",
+                    "default": 100,
+                },
             },
             "required": ["path"],
         }
@@ -92,6 +97,7 @@ class DirectoryListTool(Tool):
         recursive = kwargs.get("recursive", False)
         max_depth = kwargs.get("max_depth", 3)
         include_hidden = kwargs.get("include_hidden", False)
+        max_items = kwargs.get("max_items", 100)
 
         is_valid, error_msg = self._validate_path(path)
         if not is_valid:
@@ -124,19 +130,35 @@ class DirectoryListTool(Tool):
                         if recursive:
                             scan_dir(entry, depth + 1)
                     else:
-                        results["files"].append(str(rel_path))
+                        results["files"].append(RelPath := str(rel_path))
 
             scan_dir(base)
 
-            return json.dumps(
-                {
-                    "path": str(base.resolve()),
-                    "recursive": recursive,
-                    "directories": results["directories"],
-                    "files": results["files"],
-                    "total_items": len(results["directories"]) + len(results["files"]),
-                }
-            )
+            total_items = len(results["directories"]) + len(results["files"])
+            truncated = False
+
+            # Optimization: Truncate if too many items
+            if total_items > max_items:
+                truncated = True
+                # Keep half for dirs, half for files
+                dir_limit = max_items // 2
+                file_limit = max_items - dir_limit
+                
+                results["directories"] = results["directories"][:dir_limit]
+                results["files"] = results["files"][:file_limit]
+
+            output = {
+                "path": str(base.resolve()),
+                "recursive": recursive,
+                "directories": results["directories"],
+                "files": results["files"],
+                "total_items": total_items,
+            }
+
+            if truncated:
+                output["note"] = f"Output truncated to {max_items} items to save tokens. Total items found: {total_items}."
+
+            return json.dumps(output)
 
         except Exception as e:
             return json.dumps({"error": f"Error listing directory: {str(e)}"})

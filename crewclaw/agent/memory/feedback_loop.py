@@ -53,8 +53,11 @@ class MemoryFeedbackLoop:
         self.vector_store = VectorStore()
         self.embedder = create_embedder()
 
+        # Optimization settings
         self.min_importance = config.get("memory_feedback.min_importance", 0.7)
         self.max_memories_per_session = config.get("memory_feedback.max_memories", 5)
+        self.min_result_length = config.get("memory_feedback.min_result_length", 100)
+        self.summary_model = config.get("memory_feedback.summary_model")
 
     async def after_task(
         self,
@@ -63,28 +66,43 @@ class MemoryFeedbackLoop:
         llm,
     ) -> list[str]:
         """
-        Process task result and extract important memories.
+        Process task result and extract important memories with optimization.
 
         Args:
             task_description: Original task description.
             task_result: Result from the task execution.
-            llm: LLM instance to generate summaries.
+            llm: default LLM instance.
 
         Returns:
             List of memory IDs created.
         """
         if not self.enabled:
-            logger.debug("Memory feedback loop disabled, skipping")
+            return []
+
+        # Optimization: Skip feedback loop for very short results (likely trivial)
+        if len(task_result.strip()) < self.min_result_length:
+            logger.debug(f"Result too short ({len(task_result)}), skipping feedback loop")
             return []
 
         logger.info("Running memory feedback loop...")
+
+        # Use an alternative model for summarization if configured (to save cost/tokens)
+        summary_llm = llm
+        if self.summary_model:
+            try:
+                from crewclaw.providers.crewai import create_crewai_llm
+
+                summary_llm = create_crewai_llm(model=self.summary_model)
+                logger.debug(f"Using alternative model for summary: {self.summary_model}")
+            except Exception as e:
+                logger.warning(f"Failed to create summary LLM, falling back to default: {e}")
 
         # Build prompt to extract important information
         prompt = self._build_extraction_prompt(task_description, task_result)
 
         try:
             # Ask LLM to extract important information
-            summary = await self._generate_summary(prompt, llm)
+            summary = await self._generate_summary(prompt, summary_llm)
 
             if not summary or len(summary.strip()) < 20:
                 logger.debug("No important information to save")
@@ -108,29 +126,31 @@ Task: {task}
 
 Result: {result}
 
-Extract any important facts, preferences, or information that should be remembered for future interactions.
+Extract any important facts, preferences, or technical details that should be remembered.
 Focus on:
-- User preferences mentioned
-- Important facts or decisions
-- Context that might be useful later
+- User preferences or specific instructions
+- Critical decisions or technical findings
+- Context that is non-trivial and useful for future tasks
 
-Respond with a concise summary (2-4 sentences) of the most important information.
-If nothing important, respond with just: NOTHING_IMPORTANT"""
+Respond with a VERY concise summary (1-3 sentences).
+If nothing important was found or the result is generic, respond with: NOTHING_IMPORTANT"""
 
     async def _generate_summary(self, prompt: str, llm) -> str:
         """Generate summary using LLM."""
         try:
-            # Try async call
-            response = await llm.agenerate([{"role": "user", "content": prompt}])
-            text = response.generations[0][0].text
-        except Exception:
-            try:
-                # Fallback to sync
+            # Handle both crewai.LLM and other potential wrappers
+            if hasattr(llm, "call"):
+                text = llm.call([{"role": "user", "content": prompt}])
+            elif hasattr(llm, "agenerate"):
+                response = await llm.agenerate([{"role": "user", "content": prompt}])
+                text = response.generations[0][0].text
+            else:
+                # Fallback to sync generate if available
                 response = llm.generate([{"role": "user", "content": prompt}])
                 text = response.generations[0][0].text
-            except Exception as e:
-                logger.warning(f"LLM call failed: {e}")
-                return ""
+        except Exception as e:
+            logger.warning(f"LLM call for summary failed: {e}")
+            return ""
 
         if "NOTHING_IMPORTANT" in text.upper():
             return ""

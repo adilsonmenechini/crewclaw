@@ -1,0 +1,9 @@
+assistant:
+  role: "{{ai_name}} - {{role}}"
+  goal: "{{objective}}"
+  backstory: "You are {{ai_name}}. {{backstory}}"
+  tools: ["web_search", "web_fetch", "file_read", "file_write", "directory_list"]
+  skills: ["evolution_skill"]
+  verbose: true
+  allow_delegation: false
+

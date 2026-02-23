@@ -14,6 +14,7 @@ Memory = crewai_memory.Memory
 
 from crewclaw.config import get_config  # noqa: E402
 from crewclaw.config.logging import get_logger  # noqa: E402
+from crewclaw.providers.crewai import LiteLLMForCrewAI  # noqa: E402
 
 logger = get_logger(__name__)
 
@@ -88,20 +89,28 @@ class AgentFactory:
             "allow_delegation": config.get("allow_delegation", False),
             "max_iter": config.get("max_iter", 20),
             "max_retry_limit": config.get("max_retry_limit", 2),
+            "llm": LiteLLMForCrewAI(),
         }
 
         # Add tools
         agent_tools = list(tools) if tools else []
         if config.get("tools"):
-            # Import tools dynamically
-            for tool_name in config["tools"]:
-                try:
-                    from crewai_tools import import_tool
+            from .samples import get_all_tools
 
-                    tool = import_tool(tool_name)
-                    agent_tools.append(tool)
-                except Exception as e:
-                    logger.warning(f"Failed to load tool {tool_name}: {e}")
+            available_tools = get_all_tools()
+            requested_tools = config["tools"]
+
+            for tool_name in requested_tools:
+                # Find tool by name
+                found = False
+                for t in available_tools:
+                    if hasattr(t, "name") and t.name == tool_name:
+                        agent_tools.append(t)
+                        found = True
+                        break
+
+                if not found:
+                    logger.warning(f"Tool {tool_name} not found in registry")
 
         if agent_tools:
             kwargs["tools"] = agent_tools

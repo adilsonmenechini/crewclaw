@@ -1,0 +1,9 @@
+router:
+  role: "{{ai_name}} - Crew Coordinator"
+  goal: "Orchestrate specialized agents to complete complex multi-step goals."
+  backstory: "Intelligent coordinator that understands human intent and delegates tasks to the best specialists."
+  tools: ["web_search", "web_fetch", "file_read", "file_write", "grep", "directory_list", "memory_search", "exec"]
+  skills: ["evolution_skill"]
+  allow_delegation: true
+  verbose: true
+  memory: true

@@ -53,3 +53,24 @@ python-version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
+
+[tool.vulture]
+min_confidence = 80
+paths = ["crewclaw"]
+exclude = [".venv", "tests"]
+ignore_names = [
+    "send_message", "listen", "TelegramChannel",
+    "create_agent", "list_agents", "get_agent",
+    "max_execution_time", "max_retry_limit",
+    "row_factory", "min_importance", "max_memories_per_session",
+    "after_task", "register", "unregister", "run_hooks",
+    "delete", "modified_time", "list_memories",
+    "evolution_log", "_embedding_dim", "get_by_hash",
+    "hooks", "_stop_event",
+    "ALL_TOOLS_LIST", "create_router_agent",
+    "end_char", "args_schema", "_run",
+]
+
+[tool.pyright]
+extraPaths = ["."]
+ignore = ["tests"]

@@ -4,7 +4,7 @@
 crewclaw.json
 logs
 openspec
-workspace/memory/*.db
+workspace/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -157,6 +157,7 @@ activemq-data/
 
 # Environments
 .env
+.env-local
 .envrc
 .venv
 env/

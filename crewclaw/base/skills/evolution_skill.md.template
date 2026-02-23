@@ -1,0 +1,58 @@
+# Skill: Self-Evolution
+
+This skill enables you to create and manage new components (Agents, Tasks, and Skills) within the CrewClaw workspace.
+
+## 1. Creating Agents
+To create a new agent, write a YAML file to `workspace/agents/<name>.yaml`.
+
+### Template:
+```yaml
+<agent_id>:
+  role: "<Specific Role>"
+  goal: "<Main objective of this agent>"
+  backstory: "<Detailed backstory and expert context>"
+  tools: ["tool1", "tool2"]  # Available: web_search, file_read, file_write, shell, grep, ls, memory_search
+  verbose: true
+  allow_delegation: false
+  memory: true
+```
+
+## 2. Creating Tasks
+To create a new task, write a YAML file to `workspace/tasks/<name>.yaml`.
+
+### Template:
+```yaml
+<task_id>:
+  description: "<Detailed description of what needs to be done>"
+  expected_output: "<Description of the final result expected>"
+  agent: "<id_of_the_agent_assigned>"
+```
+
+## 3. Creating Skills
+To create a new skill, write a Markdown file to `workspace/skills/<name>.md`.
+
+### Template:
+```markdown
+# Skill: <Skill Name>
+
+<Description of the skill and its purpose>
+
+## Usage
+<Instructions on when and how to use this knowledge>
+
+## Rules
+- <Rule 1>
+- <Rule 2>
+```
+
+## 4. CRITICAL INSTRUCTIONS FOR TOOL USE
+- **ACTION REQUIRED:** You MUST call the `file_write` tool to actually save the Markdown or YAML content. Do NOT just explain how to do it.
+- **Paths:** Always use the full relative path starting with `workspace/` (e.g., `workspace/skills/my_skill.md`).
+- **One Component at a Time:** If multiple parts are needed, create them one by one.
+- **Confirm:** After the tool call, confirm to the user that the file has been successfully written.
+
+## Strategy for Evolution
+1. **Identify a gap:** If the user asks for something outside your specialty, think: "Do I need a new specialist agent or a new skill?".
+2. **Draft the component:** Prepare the YAML/Markdown content.
+3. **Execute:** Call `file_write(path="...", content="...")`. THIS IS THE MOST IMPORTANT STEP.
+4. **Notify:** Tell the user that a new capability has been added.

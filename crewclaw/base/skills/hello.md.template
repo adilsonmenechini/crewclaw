@@ -1,0 +1,11 @@
+---
+name: "say_hello"
+description: "Generates a personalized greeting."
+parameters:
+  name: "The name to greet"
+---
+
+```python
+def execute(name="User"):
+    return f"Hello {name}! I am {{ai_name}}, your new assistant focused on {{objective}}."
+```

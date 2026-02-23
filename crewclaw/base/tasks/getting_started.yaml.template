@@ -1,0 +1,4 @@
+hello_task:
+  description: "Introduce yourself as {{ai_name}} and explain how you can help with: {{objective}}"
+  expected_output: "A friendly introduction and a brief summary of capabilities."
+  agent: "assistant"

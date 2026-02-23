@@ -8,6 +8,10 @@ RUN uv sync --frozen --no-install-project --no-dev
 FROM python:3.13-slim
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/* 
 
 COPY crewclaw ./crewclaw
 COPY pyproject.toml .

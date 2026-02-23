@@ -20,7 +20,9 @@ class Database:
             db_path: Path to SQLite database. Defaults to config value.
         """
         config = get_config()
-        self.db_path = db_path or config.get("project.database_path", "./workspace/memory/crewclaw.db")
+        self.db_path = db_path or config.get(
+            "project.database_path", "./workspace/memory/crewclaw.db"
+        )
         self._conn: sqlite3.Connection | None = None
 
     def connect(self) -> sqlite3.Connection:
@@ -56,7 +58,7 @@ class Database:
 
     def _init_schema(self) -> None:
         """Initialize database schema."""
-        conn = self._conn
+        conn = self.connection  # Use property to ensure connection
 
         # Create vectors table
         conn.execute("""

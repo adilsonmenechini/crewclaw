@@ -18,13 +18,16 @@ class FileReadTool(Tool):
         workspace: Path | None = None,
     ):
         import os
+
         self.max_size = max_size
         self.allowed_extensions = allowed_extensions
-        
+
         # Default de restrição Global
         if restrict_to_workspace is None:
-            restrict_to_workspace = str(os.environ.get("RESTRICT_TO_WORKSPACE", "true")).lower() == "true"
-        
+            restrict_to_workspace = (
+                str(os.environ.get("RESTRICT_TO_WORKSPACE", "true")).lower() == "true"
+            )
+
         self.restrict_to_workspace = restrict_to_workspace
         if workspace is None:
             workspace = Path(os.environ.get("CREWCLAW_WORKSPACE", os.getcwd()))

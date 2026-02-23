@@ -68,27 +68,27 @@ class HybridSearch:
         Returns:
             List of hybrid search results.
         """
-        limit = limit or self.default_limit
+        _limit: int = limit if limit is not None else self.default_limit
 
         fts_results = []
         vector_results = []
 
         # FTS5 search
         if self.fts_enabled:
-            fts_results = self._fts_search(query, limit * 2, file_path)
+            fts_results = self._fts_search(query, _limit * 2, file_path)
             logger.debug(f"FTS5 found {len(fts_results)} results")
 
         # Vector search
         if self.vector_enabled:
             try:
                 query_embedding = self.embedder.embed(query)
-                vector_results = self.vector_store.search(query_embedding, limit * 2, file_path)
+                vector_results = self.vector_store.search(query_embedding, _limit * 2, file_path)
                 logger.debug(f"Vector search found {len(vector_results)} results")
             except Exception as e:
                 logger.warning(f"Vector search failed: {e}")
 
         # Combine results
-        return self._combine_results(fts_results, vector_results, limit)
+        return self._combine_results(fts_results, vector_results, _limit)
 
     def _fts_search(
         self,
@@ -109,7 +109,11 @@ class HybridSearch:
         db = get_database()
         conn = db.connection
 
-        # Build query
+        # Sanitize query for FTS5 (remove special characters that cause syntax errors)
+        clean_query = "".join(c if c.isalnum() or c.isspace() else " " for c in query).strip()
+        if not clean_query:
+            return []
+
         if file_path:
             sql = """
                 SELECT v.id, v.content, v.file_path, v.metadata, 
@@ -122,7 +126,7 @@ class HybridSearch:
                 ORDER BY score
                 LIMIT ?
             """
-            params = (query, file_path, limit)
+            params = (clean_query, file_path, limit)
         else:
             sql = """
                 SELECT v.id, v.content, v.file_path, v.metadata,
@@ -134,7 +138,7 @@ class HybridSearch:
                 ORDER BY score
                 LIMIT ?
             """
-            params = (query, limit)
+            params = (clean_query, limit)
 
         try:
             cursor = conn.execute(sql, params)

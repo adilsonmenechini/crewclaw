@@ -129,7 +129,7 @@ class LiteLLMEmbedder(Embedder):
 
     @property
     def dimension(self) -> int:
-        return self._dimension
+        return self._dimension  # type: ignore[return-value]
 
     def _get_client(self) -> Any:
         """Get LiteLLM client."""

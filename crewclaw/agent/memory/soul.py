@@ -6,11 +6,13 @@ from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
+
 class SoulManager:
     """Manages the agent's identity and evolution via soul.md."""
-    
+
     def __init__(self, soul_path: str | None = None):
         from crewclaw.config import get_config
+
         config = get_config()
         self.soul_path = soul_path or config.get("project.soul_path", "./workspace/memory/soul.md")
         self.identity: Dict[str, Any] = {}
@@ -23,7 +25,7 @@ class SoulManager:
             self._create_default_soul()
             return
 
-        with open(self.soul_path, 'r') as f:
+        with open(self.soul_path, "r") as f:
             content = f.read()
             # Simple parsing for identity sections
             # In a real implementation, this would use a more robust Markdown parser
@@ -39,14 +41,15 @@ class SoulManager:
 ## Values
 - Prioritize local privacy and system security.
 """
-        with open(self.soul_path, 'w') as f:
+        with open(self.soul_path, "w") as f:
             f.write(default_content)
         self.identity["content"] = default_content
 
     def evolve(self, new_insight: str):
         """Add a new insight to the soul file."""
-        with open(self.soul_path, 'a') as f:
+        with open(self.soul_path, "a") as f:
             from datetime import datetime
+
             timestamp = datetime.now().strftime("%Y-%m-%d")
             f.write(f"\n- [{timestamp}]: {new_insight}")
         logger.info(f"Soul evolved with new insight: {new_insight}")

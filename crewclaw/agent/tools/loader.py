@@ -9,14 +9,18 @@ from crewclaw.agent.tools.dynamic import DynamicSkill, parse_skill_markdown
 
 logger = logging.getLogger(__name__)
 
+
 class SkillsLoader:
     """Loads and registers tools (Skills and Custom Tools) from directories."""
-    
+
     def __init__(self, skills_dir: str | None = None, custom_tools_dir: str | None = None):
         from crewclaw.config import get_config
+
         config = get_config()
         self.skills_dir = skills_dir or config.get("project.skills_dir", "./workspace/skills")
-        self.custom_tools_dir = custom_tools_dir or config.get("project.custom_tools_dir", "./workspace/custom_tools")
+        self.custom_tools_dir = custom_tools_dir or config.get(
+            "project.custom_tools_dir", "./workspace/custom_tools"
+        )
         self.tools: Dict[str, Tool] = {}
 
     def load_all(self):
@@ -29,13 +33,13 @@ class SkillsLoader:
             return
         for md_file in glob.glob(os.path.join(self.skills_dir, "*.md")):
             try:
-                with open(md_file, 'r') as f:
+                with open(md_file, "r") as f:
                     content = f.read()
-                
+
                 parsed = parse_skill_markdown(content)
                 meta = parsed["metadata"]
                 code = parsed["code"]
-                
+
                 if not meta or "name" not in meta:
                     continue
 
@@ -46,19 +50,19 @@ class SkillsLoader:
                 try:
                     exec(code, exec_globals)
                     execute_fn = exec_globals.get("execute")
-                    
+
                     if execute_fn:
                         skill = DynamicSkill(
                             name=meta["name"],
                             description=meta.get("description", "Dynamic Skill"),
                             parameters=meta.get("parameters", {}),
-                            execute_fn=execute_fn
+                            execute_fn=execute_fn,
                         )
                         self.tools[meta["name"]] = skill
                         logger.info(f"Loaded dynamic skill: {meta['name']}")
                 except Exception as e:
                     logger.error(f"Error executing code for skill {meta['name']}: {e}")
-                    
+
             except Exception as e:
                 logger.error(f"Error loading skill from {md_file}: {e}")
 
@@ -68,16 +72,18 @@ class SkillsLoader:
             return
 
         for py_file in glob.glob(os.path.join(self.custom_tools_dir, "*.py")):
-            if py_file.endswith("__init__.py"): continue
+            if py_file.endswith("__init__.py"):
+                continue
             try:
                 # Dynamic import implementation
                 import importlib.util
+
                 module_name = os.path.splitext(os.path.basename(py_file))[0]
                 spec = importlib.util.spec_from_file_location(module_name, py_file)
                 if spec and spec.loader:
                     module = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(module)
-                    
+
                     # Look for classes that inherit from Tool/BaseTool
                     for attr_name in dir(module):
                         attr = getattr(module, attr_name)

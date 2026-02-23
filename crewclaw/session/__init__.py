@@ -4,8 +4,14 @@ from datetime import datetime
 
 from crewclaw.config.logging import get_logger
 from crewclaw.agent.memory.conversation import get_conversation_memory
-from crewclaw.agent.memory.vectorstore import VectorStore, SearchResult
-from crewclaw.agent.memory.markdown import MemoryFile, MemoryOrganizer
+from crewclaw.agent.memory.vectorstore import (
+    VectorStore as VectorStore,
+    SearchResult as SearchResult,
+)
+from crewclaw.agent.memory.markdown import (
+    MemoryFile as MemoryFile,
+    MemoryOrganizer as MemoryOrganizer,
+)
 from crewclaw.providers.llm import create_llm
 
 logger = get_logger(__name__)
@@ -26,8 +32,8 @@ class SessionManager:
         self._max_messages_before_summary = 10
 
     def _generate_session_id(self) -> str:
-        """Generate a new session ID based on date."""
-        return datetime.now().strftime("%Y%m%d")
+        """Generate a new session ID based on date and time."""
+        return datetime.now().strftime("%Y%m%d_%H%M%S")
 
     @property
     def llm(self):
@@ -36,8 +42,11 @@ class SessionManager:
             self._llm = create_llm()
         return self._llm
 
-    def load_context(self) -> list[dict]:
+    def load_context(self, query: str | None = None) -> list[dict]:
         """Load conversation context for this session.
+
+        Args:
+            query: Optional current query for semantic matching.
 
         Returns:
             List of message dicts to prepend to conversation.
@@ -52,7 +61,9 @@ class SessionManager:
             )
 
         # Get context from other sessions
-        other_context = self.conversation_memory.get_context_for_new_session(self.session_id)
+        other_context = self.conversation_memory.get_context_for_new_session(
+            self.session_id, query=query
+        )
         context.extend(other_context)
 
         # Get recent messages from this session
@@ -149,3 +160,14 @@ def set_session(session_id: str) -> SessionManager:
     global _current_session
     _current_session = SessionManager(session_id)
     return _current_session
+
+
+__all__ = [
+    "SessionManager",
+    "get_current_session",
+    "set_session",
+    "VectorStore",
+    "SearchResult",
+    "MemoryFile",
+    "MemoryOrganizer",
+]

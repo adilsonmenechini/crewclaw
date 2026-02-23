@@ -8,6 +8,7 @@ from .vectorstore import VectorStore
 
 logger = get_logger(__name__)
 
+
 class ObservationMemory:
     """Manages long-term storage of tool execution insights."""
 
@@ -30,7 +31,7 @@ class ObservationMemory:
         # Skip JSON error objects
         if result.startswith("{") and '"error"' in result.lower():
             return
-            
+
         # Truncate at 2000 chars to avoid enormous vector entries
         truncated = result
         if len(truncated) > 2000:
@@ -39,11 +40,11 @@ class ObservationMemory:
         try:
             insight_text = f"Tool '{tool_name}' observed: {truncated}"
             embedding = self.embedder.embed(insight_text)
-            
-            # Using current timestamp + tool_name as pseudo unique path 
+
+            # Using current timestamp + tool_name as pseudo unique path
             # VectorStore uses content_hash for deduplication
             file_path = f"observation:{tool_name}"
-            
+
             self.vector_store.insert(
                 content=insight_text,
                 embedding=embedding,
@@ -51,15 +52,17 @@ class ObservationMemory:
                 metadata={
                     "type": "tool_observation",
                     "tool": tool_name,
-                    "updated_at": datetime.now().isoformat()
-                }
+                    "updated_at": datetime.now().isoformat(),
+                },
             )
             logger.debug(f"Saved observation for tool '{tool_name}'")
         except Exception as e:
             logger.warning(f"Failed to save tool observation: {e}")
 
+
 # Singleton instance
 _obs_memory: ObservationMemory | None = None
+
 
 def get_observation_memory() -> ObservationMemory:
     """Get singleton observation memory instance."""

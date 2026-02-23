@@ -26,6 +26,7 @@ class Config:
         # Load environment variables from .env if it exists
         try:
             from dotenv import load_dotenv
+
             load_dotenv()
         except ImportError:
             pass

@@ -25,7 +25,9 @@ class ConversationMemory:
             db_path: Path to conversation database.
         """
         config = get_config()
-        self.db_path = db_path or config.get("project.conversation_db", "./workspace/memory/conversations.db")
+        self.db_path = db_path or config.get(
+            "project.conversation_db", "./workspace/memory/conversations.db"
+        )
         self._conn: sqlite3.Connection | None = None
         self.embedder = create_embedder()
         self.vector_store = VectorStore(db=None)  # Use default shared database
@@ -46,7 +48,7 @@ class ConversationMemory:
 
     def _init_schema(self) -> None:
         """Initialize conversation schema."""
-        conn = self._conn
+        conn = self.connection  # Use property to ensure connection
 
         conn.execute("""
             CREATE TABLE IF NOT EXISTS conversations (
@@ -83,7 +85,7 @@ class ConversationMemory:
 
     def _migrate_schema(self) -> None:
         """Migrate schema if needed."""
-        conn = self._conn
+        conn = self.connection  # Use property to ensure connection
 
         try:
             conn.execute("SELECT content_hash FROM conversations LIMIT 1")
@@ -257,8 +259,11 @@ class ConversationMemory:
             # Delete any existing vectors for this session's summary to keep it fresh
             self.vector_store.delete_by_file(file_path)
 
+            # Combined content: summary + session info
+            vector_content = f"Conversation Summary (Session {session_id}): {summary}"
+
             self.vector_store.insert(
-                content=summary,
+                content=vector_content,
                 embedding=embedding,
                 file_path=file_path,
                 metadata={
@@ -304,6 +309,8 @@ class ConversationMemory:
                 ]
 
                 for result in relevant_summaries:
+                    if result.metadata is None:
+                        continue
                     session_id = result.metadata.get("session_id", "unknown")
                     score_str = f"({result.score:.2f} relevance)"
                     messages.append(

@@ -43,28 +43,30 @@ class Tool(ABC):
     def __init_subclass__(cls, **kwargs):
         """Intercepts subclasses to wrap the execute method with ObservationMemory."""
         super().__init_subclass__(**kwargs)
-        
+
         # Só injeta na classe concreta que define `execute` (ou se ela sobrepõe)
-        if 'execute' in cls.__dict__:
+        if "execute" in cls.__dict__:
             original_execute = cls.execute
-            
+
             @wraps(original_execute)
             async def execute_with_observation(self, *args, **kw):
                 result = await original_execute(self, *args, **kw)
-                
+
                 # After successful execution, try to store insight
                 try:
                     from crewclaw.agent.memory.observation import get_observation_memory
+
                     obs_mem = get_observation_memory()
                     if isinstance(result, str):
                         obs_mem.save_observation(self.name, result)
                 except Exception as e:
                     import logging
+
                     logger = logging.getLogger(__name__)
                     logger.warning(f"Failed to observe tool {self.name}: {e}")
-                    
+
                 return result
-                
+
             cls.execute = execute_with_observation
 
     @abstractmethod
